@@ -1,7 +1,7 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { Button } from "./components/ui/button";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
@@ -13,8 +13,10 @@ function App() {
   }
 
   return (
-    <main className="bg-gray-500 min-h-screen flex flex-col items-center justify-center">
+    <main className="bg-background min-h-screen flex flex-col items-center justify-center">
       <p>teste</p>
+      <Button onClick={greet}>Greet</Button>
+      {greetMsg && <p>{greetMsg}</p>}
     </main>
   );
 }
