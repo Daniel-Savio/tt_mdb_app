@@ -19,33 +19,33 @@ export function Header() {
   }
   return (
     <>
-      <header className="w-full text-foreground px-4 pt-2 flex justify-between items-center">
+      <header className="w-full text-foreground px-4 pt-2 flex justify-between mb-2 items-center">
         <div className="flex gap-4 items-baseline">
         
           <Tabs defaultValue="connect">
             <TabsList className="bg-transparent border-0">
-              <TabsTrigger className="text-lg " value="connect">
+              <TabsTrigger className=" " value="connect">
                 <Link to="/" >{lang === 'pt-br' ? 'Conexão' : 'Connection'}</Link>
               </TabsTrigger>
-              <TabsTrigger className="text-lg" value="readings">
+              <TabsTrigger className="" value="readings">
                 <Link to="/readings">{lang === 'pt-br' ? 'Leituras' : 'Readings'}</Link>
               </TabsTrigger>
-              <TabsTrigger className="text-lg" value="settings">
+              <TabsTrigger className="" value="settings">
                 <Link to="/settings" >{lang === 'pt-br' ? 'Parâmetros' : 'Settings'}</Link>
               </TabsTrigger>
             </TabsList>
           </Tabs>
 
         </div>
-        <Select onValueChange={(value) => changeLanguage(value)} defaultValue={lang}>
-          <SelectTrigger className="w-fit flex gap-4 cursor-pointer">
+        <Select  onValueChange={(value) => changeLanguage(value)} defaultValue={lang}>
+          <SelectTrigger  className="w-fit flex gap-4 text-sm cursor-pointer">
            
-            <SelectValue></SelectValue>
+            <SelectValue className="text-sm"></SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="text-xs w-fit">
             <SelectGroup>
-              <SelectItem value="pt-br"><div className="flex gap-2 items-center"><img src={BrFlag} alt="Brazil Flag" className="h-4" /> <p>Pt-Br</p></div></SelectItem>
-              <SelectItem value="en-us"><div className="flex gap-2 items-center"><img src={UsaFlag} alt="USA Flag" className="h-4" /> <p>En-US</p></div></SelectItem>
+              <SelectItem value="pt-br"><div className="flex gap-2 items-center"><img src={BrFlag} alt="Brazil Flag" className="h-3" /> <p className="text-xs">Pt-Br</p></div></SelectItem>
+              <SelectItem value="en-us"><div className="flex gap-2 items-center"><img src={UsaFlag} alt="USA Flag" className="h-3" /> <p className="text-xs">En-US</p></div></SelectItem>
             </SelectGroup>
           </SelectContent>
         </Select>
