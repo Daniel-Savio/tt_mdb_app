@@ -1,23 +1,26 @@
-import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { Connect } from "./pages/Connect";
+import { Readings } from "./pages/Readings";
+import { Settings } from "./pages/Settings";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 import "./App.css";
-import { Button } from "./components/ui/button";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   return (
-    <main className="bg-background min-h-screen flex flex-col items-center justify-center">
-      <p>teste</p>
-      <Button onClick={greet}>Greet</Button>
-      {greetMsg && <p>{greetMsg}</p>}
-    </main>
+    <TooltipProvider>
+      <Toaster />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Connect />} />
+            <Route path="readings" element={<Readings />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
   );
 }
 
