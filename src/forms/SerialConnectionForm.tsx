@@ -1,5 +1,6 @@
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { useModbusConnection } from "@/store/useModbusConnection";
+import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,16 +40,15 @@ export function SerialConnectionForm() {
     const {
         register,
         handleSubmit,
+        control,
         formState: { errors },
-        setValue,
-        watch,
     } = useForm<SerialFormData>({
         defaultValues: {
             serialPort: connection.serialPort,
-            baudrate: connection.baudrate,
-            parity: connection.parity,
-            stopBits: connection.stopBits,
-            dataBits: connection.dataBits,
+            baudrate: connection.baudrate || 9600,
+            parity: connection.parity || 'none',
+            stopBits: connection.stopBits || 1,
+            dataBits: connection.dataBits || 8,
             slaveId: connection.slaveId,
             timeout: connection.timeout,
             retries: connection.retries,
@@ -56,125 +56,157 @@ export function SerialConnectionForm() {
     });
 
     const onSubmit = (data: SerialFormData) => {
-        setConnection({ ...data, isTcp: false });
+        const fullData = { ...data, isTcp: false };
+        setConnection(fullData);
+        console.log("Updated connection state:", fullData);
+
+        invoke("recieve_connection_info", { info: JSON.stringify(fullData) })
+            .then((response) => {
+                console.log("Connection info sent to Rust:", JSON.parse(response as string));
+            })
+            .catch((error) => {
+                console.error("Error sending connection info to Rust:", error);
+            });
     };
 
     const scanPorts = async () => {
         // Placeholder for Tauri serial port listing
-        // In a real app, you'd call a Tauri command here
         setAvailablePorts(["COM1", "COM2", "/dev/ttyUSB0"]);
     };
 
     return (
         <div>
-            <h3 className="text-lg font-bold  flex justify-between">
+            <h3 className="text-lg font-bold flex justify-between">
                 {lang === "pt-br" ? "Conexão Modbus Serial (RTU)" : "Modbus Serial Connection (RTU)"}
-                <Cable/>
+                <Cable />
             </h3>
             <Separator className="mb-4 bg-linear-to-r from-primary to-bg" />
 
             <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 justify-center">
                 <section className="flex flex-wrap gap-4 justify-center">
-                    <div className="flex flex-col gap-1.5 ">
+                    <div className="flex flex-col gap-1.5">
                         <Label htmlFor="serialPort">{lang === "pt-br" ? "Porta Serial" : "Serial Port"}</Label>
-
                         <InputGroup className="">
-                            <Select
-                                defaultValue={connection.serialPort}
-                                onValueChange={(v) => setValue("serialPort", v)}
-                                
-                            >
-                                <SelectTrigger className="w-50 rounded-none bg-card border-none">
-                                    <SelectValue placeholder="Serial Port" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {availablePorts.map((port) => (
-                                        <SelectItem key={port} value={port}>
-                                            {port}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Controller
+                                name="serialPort"
+                                control={control}
+                                rules={{ required: true }}
+                                render={({ field }) => (
+                                    <Select
+                                        onValueChange={field.onChange}
+                                        value={field.value}
+                                    >
+                                        <SelectTrigger className="w-50 rounded-none bg-card border-none">
+                                            <SelectValue placeholder="Serial Port" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availablePorts.map((port) => (
+                                                <SelectItem key={port} value={port}>
+                                                    {port}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                             <InputGroupAddon align={"inline-end"}>
-
-                                <InputGroupButton type="button"  className="text-primary"  onClick={scanPorts}>
+                                <InputGroupButton type="button" className="text-primary" onClick={scanPorts}>
                                     {lang === "pt-br" ? "Escanear" : "Scan"}
                                 </InputGroupButton>
                             </InputGroupAddon>
-
                         </InputGroup>
-
                     </div>
-
-
                 </section>
 
                 <section className="flex flex-wrap gap-4 justify-around">
-                    <div className="flex flex-col gap-1.5 ">
+                    <div className="flex flex-col gap-1.5">
                         <Label>{lang === "pt-br" ? "Baudrate" : "Baudrate"}</Label>
-                        <Select
-                            defaultValue={"9600"}
-                            onValueChange={(v) => setValue("baudrate", parseInt(v))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Baudrate" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {[9600, 14400, 19200, 38400, 57600, 115200].map((b) => (
-                                    <SelectItem key={b} value={b.toString()}>{b}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Controller
+                            name="baudrate"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    onValueChange={(v) => field.onChange(parseInt(v))}
+                                    value={field.value?.toString()}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Baudrate" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {[9600, 14400, 19200, 38400, 57600, 115200].map((b) => (
+                                            <SelectItem key={b} value={b.toString()}>{b}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
 
                     <div className="flex flex-col gap-1.5 justify-around">
                         <Label>{lang === "pt-br" ? "Data Bits" : "Data Bits"}</Label>
-                        <Select
-                            defaultValue={"8"}
-                            onValueChange={(v) => setValue("dataBits", parseInt(v))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="7">7</SelectItem>
-                                <SelectItem value="8">8</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Controller
+                            name="dataBits"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    onValueChange={(v) => field.onChange(parseInt(v))}
+                                    value={field.value?.toString()}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="7">7</SelectItem>
+                                        <SelectItem value="8">8</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
+
                     <div className="flex flex-col gap-1.5 justify-around">
                         <Label>{lang === "pt-br" ? "Paridade" : "Parity"}</Label>
-                        <Select
-                            defaultValue={"none"}
-                            onValueChange={(v) => setValue("parity", v as any)}
-                        >
-                            <SelectTrigger className="">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="even">Even</SelectItem>
-                                <SelectItem value="odd">Odd</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Controller
+                            name="parity"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value}
+                                >
+                                    <SelectTrigger className="">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="even">Even</SelectItem>
+                                        <SelectItem value="odd">Odd</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
 
-
-
-                    <div className="flex flex-col gap-1.5 ">
+                    <div className="flex flex-col gap-1.5">
                         <Label>{lang === "pt-br" ? "Stop Bits" : "Stop Bits"}</Label>
-                        <Select
-                            defaultValue={"1"}
-                            onValueChange={(v) => setValue("stopBits", parseInt(v))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1">1</SelectItem>
-                                <SelectItem value="2">2</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Controller
+                            name="stopBits"
+                            control={control}
+                            render={({ field }) => (
+                                <Select
+                                    onValueChange={(v) => field.onChange(parseInt(v))}
+                                    value={field.value?.toString()}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1">1</SelectItem>
+                                        <SelectItem value="2">2</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
                     </div>
                 </section>
 

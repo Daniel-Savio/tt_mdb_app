@@ -1,7 +1,5 @@
-
-
-
 import { useForm } from "react-hook-form";
+import { invoke } from "@tauri-apps/api/core";
 import { useModbusConnection } from "@/store/useModbusConnection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +23,6 @@ export function TCPConnectionForm() {
 
     useEffect(() => {
         setConnection({ isTcp: true });
-        console.log(connection)
     }, []);
 
     const {
@@ -43,10 +40,7 @@ export function TCPConnectionForm() {
         },
     });
 
-    const onSubmit = (data: ModbusFormData) => {
-        setConnection(data);
-        console.log(connection)
-    };
+
 
     const handleIPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = e.target.value;
@@ -67,6 +61,17 @@ export function TCPConnectionForm() {
         });
         value = sanitizedParts.join(".");
         setValue("host", value, { shouldValidate: true });
+    };
+
+    const onSubmit = (data: ModbusFormData) => {
+        setConnection(data);
+        invoke("recieve_connection_info", { info: JSON.stringify(connection) }).then((response) => {
+            console.log("Connection info sent to Rust:", JSON.parse(response as string));
+        })
+        .catch((error) => {
+            console.error("Error sending connection info to Rust:", error);
+        });
+        
     };
 
     return (
