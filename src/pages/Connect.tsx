@@ -1,24 +1,58 @@
 import { useState } from "react";
 import { useLanguage } from "@/store/useLanguage";
+import { useMaps } from "@/store/useMaps";
+import { useModbusConnection } from "@/store/useModbusConnection";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu"
 import { InputGroupButton, } from "@/components/ui/input-group"
-import { Cable, EthernetPort } from "lucide-react"
+import { Cable, EthernetPort, FileWarning } from "lucide-react"
 import { TCPConnectionForm } from "@/forms/TCPConnectionForm";
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
 import { Separator } from "@/components/ui/separator"
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { SerialConnectionForm } from "@/forms/SerialConnectionForm";
+import { toast } from "sonner";
+
 
 export function Connect() {
   const lang = useLanguage((state) => state.language);
-  const [device, setDevice] = useState<string>("");
-  const [firmware, setFirmware] = useState<string>("");
+  const { connection, setDevice, setFirmware } = useModbusConnection();
+  const [availableFirmwares, setAvailableFirmwares] = useState<string[]>([]);
+  const iedsJson = useMaps((state: any) => state.ieds);
 
+  function get_maps() {
+    if (!iedsJson || !iedsJson.IEDs) return [];
+    return iedsJson.IEDs.map((ied: any) => ({
+      name: ied.name.toUpperCase().replace(/_/g, " "),
+    }));
+  }
+
+  const handleDeviceSelect = (iedName: string) => {
+    setDevice(iedName);
+    setFirmware("");
+    
+    const ied = iedsJson.IEDs.find(
+      (i: any) => i.name.toUpperCase().replace(/_/g, " ") === iedName
+    );
+
+    if (ied) {
+      if (!ied.Firmware || ied.Firmware.length === 0) {
+        setAvailableFirmwares([]);
+        toast.error(
+          lang === "pt-br"
+            ? "Nenhum firmware disponível para o IED selecionado."
+            : "No firmware available for the selected IED."
+        );
+      } else {
+        const firmwares = ied.Firmware.map((fw: any) =>
+          fw.name.toUpperCase().replace(/_/g, ".")
+        );
+        setAvailableFirmwares(firmwares);
+      }
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full">
+    <div className="flex flex-col items-center w-fulljustify-center h-full">
       <h2 className="text-2xl font-bold mb-4">Connection</h2>
       <section className="w-fit flex flex-col justify-center gap-4">
 
@@ -27,17 +61,17 @@ export function Connect() {
           {/*! IED !*/}
           <DropdownMenu>
 
-            <DropdownMenuTrigger asChild className="w-full">
-              <InputGroupButton variant="ghost" className="cursor-pointer bg-card p-4 hover:border-primary">
-                {device ? device : (lang === "pt-br" ? "Selecione o IED..." : "Select IED...")}
+            <DropdownMenuTrigger asChild className="w-48 bg-card p-4 text-lg hover:border-primary">
+              <InputGroupButton variant="ghost" className="cursor-pointer">
+                {connection.device ? (<p className="text-primary font-bold flex gap-2 items-center"><Check />{connection.device}</p>) : (lang === "pt-br" ? <p>Selecione o IED...</p> : <p>Select IED...</p>)}
                 <ChevronDown className="ml-2" />
               </InputGroupButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="">
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => { setDevice("Documentation") }}>Documentation</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setDevice("Blog Posts") }}>Blog Posts</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setDevice("Changelog") }}>Changelog</DropdownMenuItem>
+                {iedsJson.IEDs ? get_maps().map((ied: any) => (
+                  <DropdownMenuItem key={ied.name} onClick={() => handleDeviceSelect(ied.name)}>{ied.name}</DropdownMenuItem>
+                )) : <DropdownMenuItem disabled>{lang === "pt-br" ? "Nenhum IED disponível" : "No IEDs available"}</DropdownMenuItem>}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -45,17 +79,18 @@ export function Connect() {
 
           {/*! Firmware !*/}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild className="w-full bg-card p-4 hover:border-primary">
-              <InputGroupButton variant="ghost" className="cursor-pointer">
-                {firmware ? firmware : (lang === "pt-br" ? "Selecione o Firmware..." : "Select Firmware...")}
+            <DropdownMenuTrigger asChild className="w-48 bg-card text-lg p-4 hover:border-primary">
+              <InputGroupButton disabled={!connection.device}  variant="ghost" className="cursor-pointer">
+                {connection.firmware ? (<p className="text-primary flex gap-2 items-center"><Check />{connection.firmware}</p>) : (lang === "pt-br" ? <p>Firmware...</p> : <p>Firmware...</p>)}
                 <ChevronDown className="ml-2" />
               </InputGroupButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="">
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => { setFirmware("Documentation") }}>Documentation</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setFirmware("Blog Posts") }}>Blog Posts</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setFirmware("Changelog") }}>Changelog</DropdownMenuItem>
+                {connection.device && availableFirmwares.length > 0 ? availableFirmwares.map((fw: string) => (
+                  <DropdownMenuItem key={fw} onClick={() => { setFirmware(fw) }}>{fw}</DropdownMenuItem>
+                )) : <DropdownMenuItem disabled>{lang === "pt-br" ? (connection.device ? "Nenhum firmware" : "Selecione um IED primeiro") : (connection.device ? "No firmware" : "Select an IED first")}</DropdownMenuItem>}
+
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -70,20 +105,34 @@ export function Connect() {
               <EthernetPort />
               TCP/IP
             </TabsTrigger>
-              
+
             <TabsTrigger value="serial">
-             <Cable />
+              <Cable />
               Serial
             </TabsTrigger>
+
+
           </TabsList>
+          {!connection.device || !connection.firmware ?
+            <div className="mt-4 bg-card p-2 w-full rounded-md" >
+              <p className="text-muted-foreground">
+                <FileWarning className="inline mr-2 mb-1 text-amber-400" />
+                {lang === "pt-br" ? "Por favor, selecione um IED e um firmware para habilitar as conexões." : "Please select an IED and a firmware to enable the connections."}
+              </p>
+            </div> :
 
-          <TabsContent value="tcp"  className="mt-4 bg-card p-2 w-full rounded-md">
-            <TCPConnectionForm />
+            (<>
+              <TabsContent value="tcp" className="mt-4 bg-card p-4 w-full rounded-md">
+                
+                <TCPConnectionForm/>
+              </TabsContent>
+              <TabsContent value="serial" className="mt-4 bg-card p-4 w-full rounded-md">
+                {/* <SerialConnectionForm /> */}
+              </TabsContent>
+            </>)
+          }
 
-          </TabsContent>
-          <TabsContent value="serial" className="mt-4 bg-card p-2 w-full rounded-md">
-            <SerialConnectionForm />
-          </TabsContent>
+
         </Tabs>
 
 
