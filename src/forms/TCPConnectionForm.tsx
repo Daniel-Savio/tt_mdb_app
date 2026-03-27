@@ -6,7 +6,10 @@ import { useModbusConnection } from "@/store/useModbusConnection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/store/useLanguage";
+import { useEffect } from "react";
+import { EthernetPort } from "lucide-react";
 
 interface ModbusFormData {
     host: string;
@@ -19,6 +22,11 @@ interface ModbusFormData {
 export function TCPConnectionForm() {
     const lang = useLanguage((state) => state.language);
     const { connection, setConnection } = useModbusConnection();
+
+    useEffect(() => {
+        setConnection({ isTcp: true });
+        console.log(connection)
+    }, []);
 
     const {
         register,
@@ -63,7 +71,8 @@ export function TCPConnectionForm() {
 
     return (
         <div>
-            <h3 className="text-lg font-bold mb-4 text-center">{lang === "pt-br" ? "Conexão Modbus TCP" : "Modbus TCP Connection"}</h3>
+            <h3 className="text-lg font-bold flex justify-between">{lang === "pt-br" ? "Conexão Modbus TCP" : "Modbus TCP Connection"}  <EthernetPort /></h3>
+             <Separator className="mb-4 bg-linear-to-r from-primary to-bg" />
             <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 justify-center">
                 <section className="flex flex-wrap gap-4 justify-center">
                     <div>

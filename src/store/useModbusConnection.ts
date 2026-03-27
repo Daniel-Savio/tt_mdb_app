@@ -9,6 +9,12 @@ interface ModbusConnection {
   slaveId: number
   timeout: number
   retries: number
+  serialPort: string
+  baudrate: number
+  parity: 'none' | 'even' | 'odd'
+  stopBits: number
+  dataBits: number
+  isTcp: boolean
 }
 
 interface ModbusStore {
@@ -23,10 +29,16 @@ const defaultConnection: ModbusConnection = {
   device: '',
   firmware: '',
   host: '',
+  serialPort: '',
   port: 502,
+  baudrate: 9600,
+  parity: 'none',
+  stopBits: 1,
+  dataBits: 8,
   slaveId: 1,
   timeout: 5000,
   retries: 3,
+  isTcp: true,
 }
 
 export const useModbusConnection = create<ModbusStore>()(

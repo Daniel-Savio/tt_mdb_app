@@ -126,8 +126,8 @@ export function Connect() {
                 
                 <TCPConnectionForm/>
               </TabsContent>
-              <TabsContent value="serial" className="mt-4 bg-card p-4 w-full rounded-md">
-                {/* <SerialConnectionForm /> */}
+              <TabsContent value="serial" className="mt-4 bg-card p-4 min-w-150 w-full rounded-md">
+                <SerialConnectionForm />
               </TabsContent>
             </>)
           }
