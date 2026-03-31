@@ -56,13 +56,13 @@ export function SerialConnectionForm() {
     });
 
     const onSubmit = (data: SerialFormData) => {
-        const fullData = { ...data, isTcp: false };
+        const fullData = { ...connection, ...data, isTcp: false };
         setConnection(fullData);
         console.log("Updated connection state:", fullData);
 
         invoke("recieve_connection_info", { info: JSON.stringify(fullData) })
             .then((response) => {
-                console.log("Connection info sent to Rust:", JSON.parse(response as string));
+                console.log("Connection info sent to Rust:", response);
             })
             .catch((error) => {
                 console.error("Error sending connection info to Rust:", error);
@@ -217,7 +217,7 @@ export function SerialConnectionForm() {
                             id="slaveId"
                             type="number"
                             className="w-20"
-                            {...register("slaveId", { required: true, min: 1, max: 247 })}
+                            {...register("slaveId", { required: true, min: 1, max: 247, valueAsNumber: true })}
                         />
                     </div>
 
@@ -227,7 +227,7 @@ export function SerialConnectionForm() {
                             id="timeout"
                             type="number"
                             className="w-24"
-                            {...register("timeout", { required: true, min: 100 })}
+                            {...register("timeout", { required: true, min: 100, valueAsNumber: true })}
                         />
                     </div>
 
@@ -237,7 +237,7 @@ export function SerialConnectionForm() {
                             id="retries"
                             type="number"
                             className="w-20"
-                            {...register("retries", { required: true, min: 0 })}
+                            {...register("retries", { required: true, min: 0, valueAsNumber: true })}
                         />
                     </div>
                 </section>

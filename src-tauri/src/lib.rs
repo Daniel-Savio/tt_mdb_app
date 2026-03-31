@@ -3,13 +3,32 @@ use core::str;
 use std::path::Path;
 
 use maps::build_custom_tree;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 struct GetMapsResponse{
     maps: String,
     err: bool
 }
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ModbusConnection {
+    device: String,
+    firmware: String,
+    host: String,
+    port: u16,
+    slave_id: u8,
+    timeout: u64,
+    retries: u32,
+    serial_port: String,
+    baudrate: u32,
+    parity: String,
+    stop_bits: u8,
+    data_bits: u8,
+    is_tcp: bool,
+}
+
 
 #[tauri::command]
 fn get_maps() -> GetMapsResponse{
@@ -54,10 +73,12 @@ fn get_maps() -> GetMapsResponse{
 }
 
 #[tauri::command]
-fn recieve_connection_info(info: &str) -> String {
-    return String::from(info);
-}
+fn recieve_connection_info(info: String) {
+    println!("Received connection info: {}", &info);
+    let connection_info: ModbusConnection = serde_json::from_str(&info).expect("Failed to parse connection info");
+    println!("Parsed connection info: {:?}", connection_info);
 
+}
 
 #[tauri::command]
 fn greet(name: &str) -> String {

@@ -64,9 +64,10 @@ export function TCPConnectionForm() {
     };
 
     const onSubmit = (data: ModbusFormData) => {
-        setConnection(data);
-        invoke("recieve_connection_info", { info: JSON.stringify(connection) }).then((response) => {
-            console.log("Connection info sent to Rust:", JSON.parse(response as string));
+        const fullData = { ...connection, ...data, isTcp: true };
+        setConnection(fullData);
+        invoke("recieve_connection_info", { info: JSON.stringify(fullData) }).then((response) => {
+            console.log("Connection info sent to Rust:", response);
         })
         .catch((error) => {
             console.error("Error sending connection info to Rust:", error);
@@ -108,6 +109,7 @@ export function TCPConnectionForm() {
                                 required: lang === "pt-br" ? "Porta é obrigatória" : "Port is required",
                                 min: { value: 1, message: lang === "pt-br" ? "Porta deve ser maior que 0" : "Port must be greater than 0" },
                                 max: { value: 65535, message: lang === "pt-br" ? "Porta deve ser menor que 65536" : "Port must be less than 65536" },
+                                valueAsNumber: true
                             })}
                         />
                         {errors.port && <p className="text-red-500">{errors.port.message}</p>}
@@ -125,6 +127,7 @@ export function TCPConnectionForm() {
                                 required: lang === "pt-br" ? "ID do escravo é obrigatório" : "Slave ID is required",
                                 min: { value: 1, message: lang === "pt-br" ? "ID deve ser maior que 0" : "ID must be greater than 0" },
                                 max: { value: 247, message: lang === "pt-br" ? "ID deve ser menor que 248" : "ID must be less than 248" },
+                                valueAsNumber: true
                             })}
                         />
                         {errors.slaveId && <p className="text-red-500">{errors.slaveId.message}</p>}
@@ -138,6 +141,7 @@ export function TCPConnectionForm() {
                             {...register("timeout", {
                                 required: lang === "pt-br" ? "Timeout é obrigatório" : "Timeout is required",
                                 min: { value: 100, message: lang === "pt-br" ? "Timeout deve ser pelo menos 100ms" : "Timeout must be at least 100ms" },
+                                valueAsNumber: true
                             })}
                         />
                         {errors.timeout && <p className="text-red-500">{errors.timeout.message}</p>}
@@ -151,6 +155,7 @@ export function TCPConnectionForm() {
                             {...register("retries", {
                                 required: lang === "pt-br" ? "Tentativas é obrigatório" : "Retries is required",
                                 min: { value: 0, message: lang === "pt-br" ? "Tentativas deve ser 0 ou mais" : "Retries must be 0 or more" },
+                                valueAsNumber: true
                             })}
                         />
                         {errors.retries && <p className="text-red-500">{errors.retries.message}</p>}
