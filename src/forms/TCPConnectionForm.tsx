@@ -66,7 +66,7 @@ export function TCPConnectionForm() {
     const onSubmit = (data: ModbusFormData) => {
         const fullData = { ...connection, ...data, isTcp: true };
         setConnection(fullData);
-        invoke("recieve_connection_info", { info: JSON.stringify(fullData) }).then((response) => {
+        invoke("create_connection", { info: JSON.stringify(fullData) }).then((response) => {
             console.log("Connection info sent to Rust:", response);
         })
         .catch((error) => {
