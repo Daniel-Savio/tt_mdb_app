@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, use } from "react";
+import { useGlobal } from "@/store/useGlobal";
+import { listen } from '@tauri-apps/api/event';
 import { useLanguage } from "@/store/useLanguage";
 import { useMaps } from "@/store/useMaps";
 import { useModbusConnection } from "@/store/useModbusConnection";
@@ -11,9 +13,11 @@ import { Separator } from "@/components/ui/separator"
 import { ChevronDown, Check } from "lucide-react";
 import { SerialConnectionForm } from "@/forms/SerialConnectionForm";
 import { toast } from "sonner";
+import { set } from "react-hook-form";
 
 
 export function Connect() {
+  const { setConnecting, isConnecting } = useGlobal();
   const lang = useLanguage((state) => state.language);
   const { connection, setDevice, setFirmware } = useModbusConnection();
   const [availableFirmwares, setAvailableFirmwares] = useState<string[]>([]);
@@ -29,7 +33,7 @@ export function Connect() {
   const handleDeviceSelect = (iedName: string) => {
     setDevice(iedName);
     setFirmware("");
-    
+
     const ied = iedsJson.IEDs.find(
       (i: any) => i.name.toUpperCase().replace(/_/g, " ") === iedName
     );
@@ -50,6 +54,35 @@ export function Connect() {
       }
     }
   };
+
+
+  useEffect(() => {
+    listen('trying-connection', (e:any) => {
+      console.log("Trying connection...", e.payload)
+      setConnecting(e.payload);
+      toast.loading(lang === "pt-br" ? "Tentando conectar..." : "Trying to connect...", { id: 'connection-status' });
+    });
+
+    listen('connection-success', (e: any) => {
+      console.log(e.payload)
+      toast.success(e.payload, { id: 'connection-status' });
+      setConnecting(false);
+
+    });
+
+    listen('connection-error', (e: any) => {
+      console.log(e.payload)
+      toast.error(e.payload, { id: 'connection-status' });
+      setConnecting(false);
+    });
+    
+    if (isConnecting) {
+      toast.loading(lang === "pt-br" ? "Tentando conectar..." : "Trying to connect...", { id: 'connection-status' });
+    } else{
+      toast.dismiss('connection-status');
+    }
+
+  }, [connection.device, connection.firmware]);
 
   return (
     <div className="flex flex-col items-center w-fulljustify-center h-full">

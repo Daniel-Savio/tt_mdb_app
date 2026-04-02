@@ -16,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface SerialFormData {
     serialPort: string;
@@ -60,7 +61,7 @@ export function SerialConnectionForm() {
         setConnection(fullData);
         console.log("Updated connection state:", fullData);
 
-        invoke("recieve_connection_info", { info: JSON.stringify(fullData) })
+        invoke("create_connection", { info: JSON.stringify(fullData) })
             .then((response) => {
                 console.log("Connection info sent to Rust:", response);
             })
@@ -71,7 +72,15 @@ export function SerialConnectionForm() {
 
     const scanPorts = async () => {
         // Placeholder for Tauri serial port listing
-        setAvailablePorts(["COM1", "COM2", "/dev/ttyUSB0"]);
+        invoke('get_serial_ports')
+            .then((ports: any) => {
+                console.log("Available serial ports:", ports);
+                setAvailablePorts(ports);
+            })
+            .catch((error) => {
+                toast.error(lang === "pt-br" ? "Erro ao escanear portas seriais." : "Error scanning serial ports.");
+                console.error("Error scanning serial ports:", error);
+            });
     };
 
     return (
