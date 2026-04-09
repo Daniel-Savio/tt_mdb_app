@@ -1,4 +1,4 @@
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import { useGlobal } from "@/store/useGlobal";
 import { listen } from '@tauri-apps/api/event';
 import { useLanguage } from "@/store/useLanguage";
@@ -13,11 +13,10 @@ import { Separator } from "@/components/ui/separator"
 import { ChevronDown, Check } from "lucide-react";
 import { SerialConnectionForm } from "@/forms/SerialConnectionForm";
 import { toast } from "sonner";
-import { set } from "react-hook-form";
 
 
 export function Connect() {
-  const { setConnecting, isConnecting } = useGlobal();
+  const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
   const lang = useLanguage((state) => state.language);
   const { connection, setDevice, setFirmware } = useModbusConnection();
   const [availableFirmwares, setAvailableFirmwares] = useState<string[]>([]);
@@ -67,6 +66,7 @@ export function Connect() {
       console.log(e.payload)
       toast.success(e.payload, { id: 'connection-status' });
       setConnecting(false);
+      setConnected(true);
 
     });
 
@@ -74,6 +74,8 @@ export function Connect() {
       console.log(e.payload)
       toast.error(e.payload, { id: 'connection-status' });
       setConnecting(false);
+      setConnected(false);
+      setReading(false);
     });
     
     if (isConnecting) {
@@ -133,13 +135,13 @@ export function Connect() {
 
         {/* Connections */}
         <Tabs defaultValue="tcp">
-          <TabsList className="gap-2 ">
-            <TabsTrigger value="tcp">
+          <TabsList className="gap-2">
+            <TabsTrigger aria-disabled={isConnecting || isReading || isConnected} className={ `gap-2 ${isConnecting || isReading || isConnected ? "opacity-50 cursor-not-allowed" : ""}`} value="tcp">
               <EthernetPort />
               TCP/IP
             </TabsTrigger>
 
-            <TabsTrigger value="serial">
+            <TabsTrigger aria-disabled={isConnecting || isReading || isConnected} className={ `gap-2 ${isConnecting || isReading || isConnected ? "opacity-50 cursor-not-allowed" : ""}`} value="serial">
               <Cable />
               Serial
             </TabsTrigger>
@@ -175,3 +177,11 @@ export function Connect() {
     </div>
   );
 }
+function setConnected(arg0: boolean) {
+  throw new Error("Function not implemented.");
+}
+
+function setReading(arg0: boolean) {
+  throw new Error("Function not implemented.");
+}
+

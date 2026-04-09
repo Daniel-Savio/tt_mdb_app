@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/store/useLanguage";
 import { useEffect } from "react";
 import { EthernetPort } from "lucide-react";
+import { useGlobal } from "@/store/useGlobal";
+import { toast } from "sonner";
 
 interface ModbusFormData {
     host: string;
@@ -18,6 +20,7 @@ interface ModbusFormData {
 }
 
 export function TCPConnectionForm() {
+    const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
     const lang = useLanguage((state) => state.language);
     const { connection, setConnection } = useModbusConnection();
 
@@ -39,6 +42,21 @@ export function TCPConnectionForm() {
             retries: connection.retries,
         },
     });
+
+    function disconnect(){
+        setConnected(false);
+        invoke("stop_reading").then(() => {
+            console.log("Stop reading signal sent to Rust");
+            setReading(false);
+            toast.info(
+                lang === "pt-br"
+                    ? "Desconectado com sucesso."
+                    : "Disconnected successfully."
+            );
+
+        })
+        
+    }
 
 
 
@@ -80,10 +98,11 @@ export function TCPConnectionForm() {
             <h3 className="text-lg font-bold flex justify-between">{lang === "pt-br" ? "Conexão Modbus TCP" : "Modbus TCP Connection"}  <EthernetPort /></h3>
              <Separator className="mb-4 bg-linear-to-r from-primary to-bg" />
             <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4 justify-center">
-                <section className="flex flex-wrap gap-4 justify-center">
+                <section  className="flex flex-wrap gap-4 justify-center">
                     <div>
                         <Label htmlFor="host">{lang === "pt-br" ? "Host (IP)" : "Host (IP)"}</Label>
                         <Input
+                            disabled={isConnecting || isReading || isConnected}
                             className=""
                             id="host"
                             type="text"
@@ -103,6 +122,7 @@ export function TCPConnectionForm() {
                     <div>
                         <Label htmlFor="port">{lang === "pt-br" ? "Porta" : "Port"}</Label>
                         <Input
+                         disabled={isConnecting || isReading || isConnected}
                             id="port"
                             type="number"
                             {...register("port", {
@@ -121,6 +141,7 @@ export function TCPConnectionForm() {
                     <div>
                         <Label htmlFor="slaveId">{lang === "pt-br" ? "ID do Escravo" : "Slave ID"}</Label>
                         <Input
+                         disabled={isConnecting || isReading || isConnected}
                             id="slaveId"
                             type="number"
                             {...register("slaveId", {
@@ -136,6 +157,7 @@ export function TCPConnectionForm() {
                     <div>
                         <Label htmlFor="timeout">{lang === "pt-br" ? "Timeout (ms)" : "Timeout (ms)"}</Label>
                         <Input
+                         disabled={isConnecting || isReading || isConnected}
                             id="timeout"
                             type="number"
                             {...register("timeout", {
@@ -150,6 +172,7 @@ export function TCPConnectionForm() {
                     <div>
                         <Label htmlFor="retries">{lang === "pt-br" ? "Tentativas" : "Retries"}</Label>
                         <Input
+                         disabled={isConnecting || isReading || isConnected}
                             id="retries"
                             type="number"
                             {...register("retries", {
@@ -162,8 +185,11 @@ export function TCPConnectionForm() {
                     </div>
                 </section>
 
-
-                <Button type="submit">{lang === "pt-br" ? "Conectar" : "Connect"}</Button>
+                {isConnected || isReading ? (
+                    <Button onClick={(e)=>{ e.preventDefault(); disconnect()}} variant={"destructive"}>{lang === "pt-br" ? "Desconectar" : "Disconnect"}</Button>
+                ) : (
+                    <Button disabled={isConnecting || isReading || isConnected} type="submit">{lang === "pt-br" ? "Conectar" : "Connect"}</Button>
+                )}
             </form>
         </div>
     );

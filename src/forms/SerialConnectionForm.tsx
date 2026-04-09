@@ -17,6 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useGlobal } from "@/store/useGlobal";
 
 interface SerialFormData {
     serialPort: string;
@@ -30,9 +31,25 @@ interface SerialFormData {
 }
 
 export function SerialConnectionForm() {
+    const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
     const lang = useLanguage((state) => state.language);
     const { connection, setConnection } = useModbusConnection();
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
+
+    function disconnect() {
+        setConnected(false);
+        invoke("stop_reading").then(() => {
+            console.log("Stop reading signal sent to Rust");
+            setReading(false);
+            toast.info(
+                lang === "pt-br"
+                    ? "Desconectado com sucesso."
+                    : "Disconnected successfully."
+            );
+
+        })
+
+    }
 
     useEffect(() => {
         setConnection({ isTcp: false });
@@ -97,11 +114,13 @@ export function SerialConnectionForm() {
                         <Label htmlFor="serialPort">{lang === "pt-br" ? "Porta Serial" : "Serial Port"}</Label>
                         <InputGroup className="">
                             <Controller
+                                disabled={isConnecting || isReading || isConnected}
                                 name="serialPort"
                                 control={control}
                                 rules={{ required: true }}
                                 render={({ field }) => (
                                     <Select
+                                        disabled={isConnecting || isReading || isConnected}
                                         onValueChange={field.onChange}
                                         value={field.value}
                                     >
@@ -119,7 +138,7 @@ export function SerialConnectionForm() {
                                 )}
                             />
                             <InputGroupAddon align={"inline-end"}>
-                                <InputGroupButton type="button" className="text-primary" onClick={scanPorts}>
+                                <InputGroupButton disabled={isConnecting || isReading || isConnected} type="button" className="text-primary" onClick={scanPorts}>
                                     {lang === "pt-br" ? "Escanear" : "Scan"}
                                 </InputGroupButton>
                             </InputGroupAddon>
@@ -135,6 +154,7 @@ export function SerialConnectionForm() {
                             control={control}
                             render={({ field }) => (
                                 <Select
+                                    disabled={isConnecting || isReading || isConnected}
                                     onValueChange={(v) => field.onChange(parseInt(v))}
                                     value={field.value?.toString()}
                                 >
@@ -160,6 +180,7 @@ export function SerialConnectionForm() {
                                 <Select
                                     onValueChange={(v) => field.onChange(parseInt(v))}
                                     value={field.value?.toString()}
+                                    disabled={isConnecting || isReading || isConnected}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
@@ -182,6 +203,7 @@ export function SerialConnectionForm() {
                                 <Select
                                     onValueChange={field.onChange}
                                     value={field.value}
+                                    disabled={isConnecting || isReading || isConnected}
                                 >
                                     <SelectTrigger className="">
                                         <SelectValue />
@@ -205,6 +227,7 @@ export function SerialConnectionForm() {
                                 <Select
                                     onValueChange={(v) => field.onChange(parseInt(v))}
                                     value={field.value?.toString()}
+                                    disabled={isConnecting || isReading || isConnected}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
@@ -223,6 +246,7 @@ export function SerialConnectionForm() {
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="slaveId">{lang === "pt-br" ? "ID do Escravo" : "Slave ID"}</Label>
                         <Input
+                        disabled={isConnecting || isReading || isConnected}
                             id="slaveId"
                             type="number"
                             className="w-20"
@@ -232,7 +256,9 @@ export function SerialConnectionForm() {
 
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="timeout">{lang === "pt-br" ? "Timeout (ms)" : "Timeout (ms)"}</Label>
+                        
                         <Input
+                            disabled={isConnecting || isReading || isConnected}
                             id="timeout"
                             type="number"
                             className="w-24"
@@ -243,6 +269,7 @@ export function SerialConnectionForm() {
                     <div className="flex flex-col gap-1.5">
                         <Label htmlFor="retries">{lang === "pt-br" ? "Tentativas" : "Retries"}</Label>
                         <Input
+                            disabled={isConnecting || isReading || isConnected}
                             id="retries"
                             type="number"
                             className="w-20"
@@ -251,9 +278,13 @@ export function SerialConnectionForm() {
                     </div>
                 </section>
 
-                <Button type="submit" className="mt-4">
-                    {lang === "pt-br" ? "Conectar" : "Connect"}
-                </Button>
+                
+
+                {isConnected || isReading ? (
+                    <Button onClick={(e) => { e.preventDefault(); disconnect() }} variant={"destructive"}>{lang === "pt-br" ? "Desconectar" : "Disconnect"}</Button>
+                ) : (
+                    <Button disabled={isConnecting || isReading || isConnected} type="submit">{lang === "pt-br" ? "Conectar" : "Connect"}</Button>
+                )}
             </form>
         </div>
     );

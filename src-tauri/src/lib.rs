@@ -111,13 +111,20 @@ fn get_serial_ports() -> Vec<String> {
     }
 }
 
+
+#[tauri::command]
+fn stop_reading(app: AppHandle) {
+    app.emit("reading-stop", true).unwrap();
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Procura o diretório em caminhos relativos possíveis
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_maps, create_connection, get_serial_ports])
+        .invoke_handler(tauri::generate_handler![get_maps, create_connection, get_serial_ports, stop_reading])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
