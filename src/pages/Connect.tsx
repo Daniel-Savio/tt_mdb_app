@@ -88,7 +88,7 @@ export function Connect() {
 
   return (
     <div className="flex flex-col items-center w-fulljustify-center h-full">
-      <h2 className="text-2xl font-bold mb-4">Connection</h2>
+      <h2 className="text-2xl font-bold mb-4">{}{lang === "pt-br" ? "Conexão" : "Connection"}</h2>
       <section className="w-fit flex flex-col justify-center gap-4">
 
         {/* IED e Firmware */}
