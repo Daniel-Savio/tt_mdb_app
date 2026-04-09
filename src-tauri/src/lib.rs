@@ -37,12 +37,18 @@ fn get_maps() -> GetMapsResponse {
     let path = Path::new(MAPS_FOLDER);
 
     match build_custom_tree(path, 0) {
-        Ok(tree) => {
+        Ok(Some(tree)) => {
             let json_output = serde_json::to_string_pretty(&tree).unwrap();
 
             return GetMapsResponse {
                 maps: json_output,
                 err: false,
+            };
+        }
+        Ok(None) => {
+            return GetMapsResponse {
+                maps: String::from("No maps found"),
+                err: true,
             };
         }
         Err(_e) => {

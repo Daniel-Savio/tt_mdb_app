@@ -136,7 +136,7 @@ pub struct CsvMapping {
     pub cdc: Option<String>,
 }
 
-pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Value> {
+pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Option<Value>> {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -151,7 +151,14 @@ pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Value> {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             // Incrementamos o nível para decidir o nome da chave no próximo passo
-            children.push(build_custom_tree(&entry.path(), level + 1)?);
+            if let Some(child) = build_custom_tree(&entry.path(), level + 1)? {
+                children.push(child);
+            }
+        }
+
+        // Se esta pasta não tiver nenhum filho válido, omitimos ela totalmente
+        if children.is_empty() {
+            return Ok(None);
         }
 
         // Define o nome da chave baseado na profundidade
@@ -161,15 +168,13 @@ pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Value> {
             _ => "children", // Caso existam níveis mais profundos
         };
 
-        if !children.is_empty() {
-            map.insert(key_name.to_string(), Value::Array(children));
-        }
+        map.insert(key_name.to_string(), Value::Array(children));
     } else {
         // Se for um arquivo, usamos a chave "File"
         map.insert("File".to_string(), json!(true));
     }
 
-    Ok(Value::Object(map))
+    Ok(Some(Value::Object(map)))
 }
 
 pub fn get_maps(device: &str, firmware: &str) -> Result<PathBuf, String> {
@@ -190,7 +195,6 @@ pub fn get_maps(device: &str, firmware: &str) -> Result<PathBuf, String> {
         Err("Map Not Found".to_string())
     }
 }
-
 
 pub fn csv_to_vec(path: &Path) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(path)?;
