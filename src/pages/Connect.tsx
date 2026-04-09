@@ -57,7 +57,7 @@ export function Connect() {
 
 
   useEffect(() => {
-    listen('trying-connection', (e:any) => {
+    listen('connection-trying', (e:any) => {
       console.log("Trying connection...", e.payload)
       setConnecting(e.payload);
       toast.loading(lang === "pt-br" ? "Tentando conectar..." : "Trying to connect...", { id: 'connection-status' });

@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tokio_modbus::{client::Context, prelude::*};
-use std::net::SocketAddr;
+use std::{ net::SocketAddr};
 use tokio_serial::SerialStream;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-
 pub struct ModbusConnection {
     pub host: String,
     pub port: u16,
@@ -28,7 +27,7 @@ pub struct ModbusClient {
 }
 
 impl ModbusClient {
-    pub async fn new(connection_info: ModbusConnection) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(connection_info: ModbusConnection, device: String, firmware: String) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let client = if connection_info.is_tcp {
             let socket_addr = SocketAddr::new(connection_info.host.parse()?, connection_info.port);
             tcp::connect_slave(socket_addr, Slave(connection_info.slave_id)).await?
@@ -70,8 +69,8 @@ impl ModbusClient {
         Ok(ModbusClient {
             connection_info: connection_info,
             client: client,
-            device: String::new(),
-            firmware: String::new(),
+            device: device,
+            firmware: firmware,
         })
     }
 

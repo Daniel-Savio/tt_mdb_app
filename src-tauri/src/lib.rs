@@ -2,6 +2,7 @@ pub mod maps;
 pub mod modbus;
 use crate::modbus::ModbusClient;
 use maps::build_custom_tree;
+use maps::MAPS_FOLDER;
 use modbus::ModbusConnection;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -33,27 +34,8 @@ struct GetMapsResponse {
 
 #[tauri::command]
 fn get_maps() -> GetMapsResponse {
-    let paths = [
-        "src-tauri/src/maps_folder/",
-        "src/maps_folder/",
-        "./maps_folder/",
-    ];
-    let mut path = Path::new(paths[0]);
+    let path = Path::new(MAPS_FOLDER);
 
-    for p in paths {
-        let candidate = Path::new(p);
-        if candidate.exists() {
-            path = candidate;
-            break;
-        }
-    }
-
-    if !path.exists() {
-        return GetMapsResponse {
-            maps: String::from("Erro: O directório {} não existe nos locais testados."),
-            err: true,
-        };
-    }
     match build_custom_tree(path, 0) {
         Ok(tree) => {
             let json_output = serde_json::to_string_pretty(&tree).unwrap();
@@ -63,7 +45,7 @@ fn get_maps() -> GetMapsResponse {
                 err: false,
             };
         }
-        Err(e) => {
+        Err(_e) => {
             return GetMapsResponse {
                 maps: String::from("Error building tree"),
                 err: true,
@@ -97,21 +79,17 @@ async fn create_connection(info: String, app: AppHandle) {
         data_bits: connection_info.data_bits,
         is_tcp: connection_info.is_tcp,
     };
-    app.emit("trying-connection", true).unwrap();
+    app.emit("connection-trying", true).unwrap();
+    
 
     
-    let device = ModbusClient::new(connection_info)
-        .await
-        .map_err(|e|{
-            eprintln!("Error creating Modbus client: {}", e);
-            app.emit("connection-error", format!("Failed to create Modbus client: {}", e)).unwrap();
-        })
-        .ok()
-        .map(|client| {
-            println!("Successfully created Modbus client for device: {}-{}", device_name, firmware  );
-            app.emit("connection-success", format!("Successfully connected to device: {}-{}", device_name, firmware)).unwrap();
-            client
-        });
+    if let Ok(mut client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
+        println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
+        app.emit("connection-success", "Successfully connected to device").unwrap();
+    } else {
+        app.emit("connection-error", "Failed to create Modbus client").unwrap();
+    }
+    
 
     
 }
