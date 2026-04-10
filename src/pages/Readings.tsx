@@ -31,7 +31,7 @@ export function Readings() {
     queryFn: () => {
       invoke("start_reading").then((data) => {
         console.log(data)
-      }).catch(e => {toast.error(e.message)})
+      }).catch(e => {toast.warning("Nehum dado carregado")})
     },
   })  
 
