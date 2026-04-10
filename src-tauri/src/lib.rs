@@ -6,7 +6,8 @@ use maps::MAPS_FOLDER;
 use modbus::ModbusConnection;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +31,10 @@ struct ConnectionData {
 struct GetMapsResponse {
     maps: String,
     err: bool,
+}
+
+struct AppState {
+    client: Mutex<Option<ModbusClient>>,
 }
 
 #[tauri::command]
@@ -61,12 +66,12 @@ fn get_maps() -> GetMapsResponse {
 }
 
 #[tauri::command]
-async fn create_connection(info: String, app: AppHandle) {
+async fn create_connection(info: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let connection_info: ConnectionData = match serde_json::from_str(&info) {
         Ok(info) => info,
         Err(e) => {
             eprintln!("Error parsing connection info: {}", e);
-            return;
+            return Err("Error parsing connection info".to_string());
         }
     };
     let device_name = connection_info.device.clone();
@@ -87,13 +92,15 @@ async fn create_connection(info: String, app: AppHandle) {
     };
     app.emit("connection-trying", true).unwrap();
     
-
     
     if let Ok(mut client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
         println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
+        *state.client.lock().unwrap() = Some(client);
         app.emit("connection-success", "Successfully connected to device").unwrap();
+        Ok(())
     } else {
         app.emit("connection-error", "Failed to create Modbus client").unwrap();
+        Err("Failed to create Modbus client".to_string())
     }
     
 
@@ -101,42 +108,14 @@ async fn create_connection(info: String, app: AppHandle) {
 }
 
 #[tauri::command]
-async fn start_reading(info: String, app: AppHandle) {
-    let connection_info: ConnectionData = match serde_json::from_str(&info) {
-        Ok(info) => info,
-        Err(e) => {
-            eprintln!("Error parsing connection info: {}", e);
-            return;
-        }
-    };
-    let device_name = connection_info.device.clone();
-    let firmware = connection_info.firmware.clone();
-
-    let connection_info = ModbusConnection {
-        host: connection_info.host,
-        port: connection_info.port,
-        slave_id: connection_info.slave_id,
-        timeout: connection_info.timeout,
-        retries: connection_info.retries,
-        serial_port: connection_info.serial_port,
-        baudrate: connection_info.baudrate,
-        parity: connection_info.parity,
-        stop_bits: connection_info.stop_bits,
-        data_bits: connection_info.data_bits,
-        is_tcp: connection_info.is_tcp,
-    };
-    app.emit("connection-trying", true).unwrap();
-    
-
-    
-    if let Ok(mut client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
-        println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
-        app.emit("connection-success", "Successfully connected to device").unwrap();
-    } else {
-        app.emit("connection-error", "Failed to create Modbus client").unwrap();
+async fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
+    let mut client_guard = state.client.lock().unwrap();
+    if let Some(ref mut client) = *client_guard {
+        println!("{}", client.device);
+        Ok(format!("{} - {}", client.device, client.firmware))
+    }else {
+        return Err("Cliente Modbus não conectado".to_string())
     }
-    
-
     
 }
 
@@ -156,14 +135,14 @@ fn stop_reading(app: AppHandle) {
     app.emit("reading-stop", true).unwrap();
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Procura o diretório em caminhos relativos possíveis
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_maps, create_connection, get_serial_ports, stop_reading])
+        .manage(AppState { client: Mutex::new(None) })
+        .invoke_handler(tauri::generate_handler![get_maps, create_connection, get_serial_ports, start_reading, stop_reading])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

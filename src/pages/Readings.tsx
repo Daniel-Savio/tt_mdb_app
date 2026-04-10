@@ -10,6 +10,7 @@ import { Clock, ListRestart } from "lucide-react";
 import {columns} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 
 
 export function Readings() {
@@ -28,9 +29,9 @@ export function Readings() {
   const { data, isPending, error } = useQuery({
     queryKey: ['csvData'],
     queryFn: () => {
-      invoke("reading-start").then((data) => {
+      invoke("start_reading").then((data) => {
         console.log(data)
-      })
+      }).catch(e => {toast.error(e.message)})
     },
   })  
 
