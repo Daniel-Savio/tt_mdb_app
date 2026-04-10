@@ -101,6 +101,46 @@ async fn create_connection(info: String, app: AppHandle) {
 }
 
 #[tauri::command]
+async fn start_reading(info: String, app: AppHandle) {
+    let connection_info: ConnectionData = match serde_json::from_str(&info) {
+        Ok(info) => info,
+        Err(e) => {
+            eprintln!("Error parsing connection info: {}", e);
+            return;
+        }
+    };
+    let device_name = connection_info.device.clone();
+    let firmware = connection_info.firmware.clone();
+
+    let connection_info = ModbusConnection {
+        host: connection_info.host,
+        port: connection_info.port,
+        slave_id: connection_info.slave_id,
+        timeout: connection_info.timeout,
+        retries: connection_info.retries,
+        serial_port: connection_info.serial_port,
+        baudrate: connection_info.baudrate,
+        parity: connection_info.parity,
+        stop_bits: connection_info.stop_bits,
+        data_bits: connection_info.data_bits,
+        is_tcp: connection_info.is_tcp,
+    };
+    app.emit("connection-trying", true).unwrap();
+    
+
+    
+    if let Ok(mut client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
+        println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
+        app.emit("connection-success", "Successfully connected to device").unwrap();
+    } else {
+        app.emit("connection-error", "Failed to create Modbus client").unwrap();
+    }
+    
+
+    
+}
+
+#[tauri::command]
 fn get_serial_ports() -> Vec<String> {
     match tokio_serial::available_ports() {
         Ok(ports) => ports.into_iter().map(|p| p.port_name).collect(),
@@ -110,7 +150,6 @@ fn get_serial_ports() -> Vec<String> {
         }
     }
 }
-
 
 #[tauri::command]
 fn stop_reading(app: AppHandle) {
