@@ -84,7 +84,6 @@ impl ModbusClient {
         
         for mapping in map_vec {
             let value = if let (Some(tipo), Some(addr)) = (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus) {
-                println!("Tipo: {}, Addr: {}", tipo, addr);
                 match tipo {
                     "Holding register" => {
                         let outer_result = self.client.read_holding_registers(addr, 1).await;
@@ -92,12 +91,12 @@ impl ModbusClient {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
                                 Err(e) => {
-                                    println!("{}", e);
+                                    
                                     None
                                 },
                             },
                             Err(e) => { 
-                                println!("{}", e);
+                                
                                 None},
                         }
                     }
@@ -107,12 +106,12 @@ impl ModbusClient {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
                                 Err(e) => {
-                                    println!("{}", e);
+                                    
                                     None
                                 },
                             },
                             Err(e) => { 
-                                println!("{}", e);
+                                
                                 None},
                         }
                     }
@@ -152,11 +151,8 @@ impl ModbusClient {
                     },
                 }
             } else {
-                println!("Invalid mapping: {:?} - tipo: {:?}, addr: {:?}", mapping.uuid, mapping.tipo_modbus, mapping.registrador_modbus);
                 None
             };
-
-            println!("Register: {:?} - Value: {:?}", mapping.registrador_modbus, value);
             
             
             result.push(DeviceData {

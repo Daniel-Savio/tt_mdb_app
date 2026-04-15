@@ -6,13 +6,57 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useGlobal } from "@/store/useGlobal";
 import { useLanguage } from "@/store/useLanguage";
-import { Clock, ListRestart } from "lucide-react";
-import {columns} from "@/tables/readings-table/readings-columns";
+import { Clock, ListRestart, Loader } from "lucide-react";
+import {columns, CsvReadings} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useEffect } from "react";
 
+export interface RawJsonReading {
+  "UUID": string;
+  "Teste automático"?: number;
+  "Modo"?: string;
+  "Tratamento"?: string;
+  "Tabela (Modbus)"?: string;
+  "Tipo (Modbus)"?: string;
+  "Registrador (Modbus)"?: number;
+  "Tipo (DNP3)"?: string;
+  "Índice (DNP3)"?: number;
+  "Limite inferior"?: string;
+  "Limite superior"?: string;
+  "Valor default"?: string;
+  "Divisor"?: string;
+  "Unidade pt"?: string;
+  "Unidade en"?: string;
+  "Unidade es"?: string;
+  "Conversão pt"?: string;
+  "Conversão en"?: string;
+  "Conversão es"?: string;
+  "Opcional"?: string;
+  "Condicional"?: string;
+  "Nível de acesso"?: string;
+  "Descrição pt"?: string;
+  "Descrição en"?: string;
+  "Descrição es"?: string;
+  "Display pt"?: string;
+  "Display en"?: string;
+  "Display es"?: string;
+  "Observações"?: string;
+  "Funcionalidade pt"?: string;
+  "Funcionalidade en"?: string;
+  "Funcionalidade es"?: string;
+  "Grupo pt"?: string;
+  "Grupo en"?: string;
+  "Grupo es"?: string;
+  "Classificação"?: string;
+  "Gráfico rápido"?: string;
+  "Histórico de dados"?: string;
+  "IEC 61850"?: string;
+  "Link"?: string;
+  "CDC"?: string;
+  value?: number; // Note: This one did not have a rename attribute in your Rust struct
+}
 
 export function Readings() {
 
@@ -30,9 +74,27 @@ export function Readings() {
   const { data, isPending, error } = useQuery({
     queryKey: ['csvData'],
     queryFn: async () => {
-      let csvData: string = await invoke("start_reading")
-      console.log(csvData)
-      return JSON.parse(csvData);
+      const csvData: string = await invoke("start_reading")
+      const raw_data: RawJsonReading[] = JSON.parse(csvData);
+      let table_data: CsvReadings[] = [];
+     
+      raw_data.forEach((row)=>{
+        table_data.push({
+          modo: row["Modo"]!,
+          tratamento: row["Tratamento"]!,
+          tabela_modbus: row["Tabela (Modbus)"]!,
+          tipo_modbus: row["Tipo (Modbus)"]!,
+          registrador_modbus: row["Registrador (Modbus)"]!,
+          limites: row["Limite inferior"]! + " - " + row["Limite superior"]!,
+          opcional: row["Opcional"]!,
+          nivel_de_acesso: row["Nível de acesso"]!,
+          descricao: row[`${lang === "Pt-br" ? "Descrição pt" : "Descrição en"}`]!,
+          valor: (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString(),
+          unidade: row["Unidade pt"]!
+        })
+      })
+      console.log(table_data)
+      return table_data
     }
   })  
 
@@ -76,7 +138,15 @@ export function Readings() {
 
       <Separator orientation="horizontal" />
 
-      {/* <DataTable columns={columns} data={[]} /> */}
+      {isPending && (
+        <Loader />
+
+      )}
+
+      {data && (
+        <DataTable columns={columns} data={data} />
+      )}
+     
     </section>
   );
 }
