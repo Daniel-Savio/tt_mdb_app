@@ -7,11 +7,12 @@ import { Switch } from "@/components/ui/switch";
 import { useGlobal } from "@/store/useGlobal";
 import { useLanguage } from "@/store/useLanguage";
 import { Clock, ListRestart, Loader } from "lucide-react";
-import {columns, CsvReadings} from "@/tables/readings-table/readings-columns";
+import {getColumns, CsvReadings} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface RawJsonReading {
   "UUID": string;
@@ -70,6 +71,7 @@ export function Readings() {
   }
   const { isConnecting, isReading, isConnected, setReading } = useGlobal();
   const lang = useLanguage().language;
+  const columns = getColumns(lang);
 
   const { data, isPending, error } = useQuery({
     queryKey: ['csvData'],
@@ -88,7 +90,7 @@ export function Readings() {
           limites: row["Limite inferior"]! + " - " + row["Limite superior"]!,
           opcional: row["Opcional"]!,
           nivel_de_acesso: row["Nível de acesso"]!,
-          descricao: row[`${lang === "Pt-br" ? "Descrição pt" : "Descrição en"}`]!,
+          descricao: row[`${lang === "pt-br" ? "Descrição pt" : "Descrição en"}`]!,
           valor: (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString(),
           unidade: row["Unidade pt"]!
         })
@@ -139,12 +141,16 @@ export function Readings() {
       <Separator orientation="horizontal" />
 
       {isPending && (
-        <Loader />
+        <Loader className=" mt-10 animate-spin" />
 
       )}
 
       {data && (
-        <DataTable columns={columns} data={data} />
+            <div className="mt-10">
+
+              <DataTable columns={columns} data={data} />
+            </div>
+       
       )}
      
     </section>

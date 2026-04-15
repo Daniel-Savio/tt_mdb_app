@@ -1,5 +1,4 @@
 import { ColumnDef } from "@tanstack/react-table"
-import {useLanguage} from "@/store/useLanguage";
 
 
 export type CsvReadings = {
@@ -17,10 +16,11 @@ export type CsvReadings = {
 
 }
  
-
-const lang = useLanguage().language;
-
-export const columns: ColumnDef<CsvReadings>[] = [
+export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
+  {
+    accessorKey: "descricao",
+    header: lang === "pt-br" ? "Descrição" : "Description",
+  },
   {
     accessorKey: "modo",
     header: lang === "pt-br" ? "Modo" : "Mode",
@@ -56,10 +56,6 @@ export const columns: ColumnDef<CsvReadings>[] = [
   {
     accessorKey: "nivel_de_acesso",
     header: lang === "pt-br" ? "Nível de acesso" : "Access Level",
-  },
-  {
-    accessorKey: "descricao",
-    header: lang === "pt-br" ? "Descrição" : "Description",
   },
   {
     accessorKey: "valor",
