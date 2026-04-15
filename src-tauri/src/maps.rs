@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 pub const MAPS_FOLDER: &str = "src/maps_folder/";
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CsvMapping {
     #[serde(rename = "UUID")]
     pub uuid: String,
@@ -134,6 +134,13 @@ pub struct CsvMapping {
 
     #[serde(rename = "CDC")]
     pub cdc: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeviceData {
+    #[serde(flatten)]
+    pub mapping: CsvMapping,
+    pub value: Option<f64>,
 }
 
 pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Option<Value>> {

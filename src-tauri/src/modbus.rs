@@ -1,136 +1,8 @@
-use crate::maps::{csv_to_vec, get_map_path, CsvMapping};
+use crate::maps::{csv_to_vec, get_map_path, DeviceData};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tokio_modbus::{client::Context, prelude::*};
 use tokio_serial::SerialStream;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DeviceData {
-    #[serde(rename = "UUID")]
-    pub uuid: String,
-
-    #[serde(rename = "Teste automático")]
-    pub teste_automatico: Option<i32>,
-
-    #[serde(rename = "Modo")]
-    pub modo: Option<String>,
-
-    #[serde(rename = "Tratamento")]
-    pub tratamento: Option<String>,
-
-    #[serde(rename = "Tabela (Modbus)")]
-    pub tabela_modbus: Option<String>,
-
-    #[serde(rename = "Tipo (Modbus)")]
-    pub tipo_modbus: Option<String>,
-
-    #[serde(rename = "Registrador (Modbus)")]
-    pub registrador_modbus: Option<u16>,
-
-    #[serde(rename = "Tipo (DNP3)")]
-    pub tipo_dnp3: Option<String>,
-
-    #[serde(rename = "Índice (DNP3)")]
-    pub indice_dnp3: Option<u32>,
-
-    #[serde(rename = "Limite inferior")]
-    pub limite_inferior: Option<String>,
-
-    #[serde(rename = "Limite superior")]
-    pub limite_superior: Option<String>,
-
-    #[serde(rename = "Valor default")]
-    pub valor_default: Option<String>,
-
-    #[serde(rename = "Divisor")]
-    pub divisor: Option<String>, // Kept as String to avoid parsing errors on empty or mixed formats
-
-    #[serde(rename = "Unidade pt")]
-    pub unidade_pt: Option<String>,
-
-    #[serde(rename = "Unidade en")]
-    pub unidade_en: Option<String>,
-
-    #[serde(rename = "Unidade es")]
-    pub unidade_es: Option<String>,
-
-    #[serde(rename = "Conversão pt")]
-    pub conversao_pt: Option<String>,
-
-    #[serde(rename = "Conversão en")]
-    pub conversao_en: Option<String>,
-
-    #[serde(rename = "Conversão es")]
-    pub conversao_es: Option<String>,
-
-    #[serde(rename = "Opcional")]
-    pub opcional: Option<String>,
-
-    #[serde(rename = "Condicional")]
-    pub condicional: Option<String>,
-
-    #[serde(rename = "Nível de acesso")]
-    pub nivel_de_acesso: Option<String>,
-
-    #[serde(rename = "Descrição pt")]
-    pub descricao_pt: Option<String>,
-
-    #[serde(rename = "Descrição en")]
-    pub descricao_en: Option<String>,
-
-    #[serde(rename = "Descrição es")]
-    pub descricao_es: Option<String>,
-
-    #[serde(rename = "Display pt")]
-    pub display_pt: Option<String>,
-
-    #[serde(rename = "Display en")]
-    pub display_en: Option<String>,
-
-    #[serde(rename = "Display es")]
-    pub display_es: Option<String>,
-
-    #[serde(rename = "Observações")]
-    pub observacoes: Option<String>,
-
-    #[serde(rename = "Funcionalidade pt")]
-    pub funcionalidade_pt: Option<String>,
-
-    #[serde(rename = "Funcionalidade en")]
-    pub funcionalidade_en: Option<String>,
-
-    #[serde(rename = "Funcionalidade es")]
-    pub funcionalidade_es: Option<String>,
-
-    #[serde(rename = "Grupo pt")]
-    pub grupo_pt: Option<String>,
-
-    #[serde(rename = "Grupo en")]
-    pub grupo_en: Option<String>,
-
-    #[serde(rename = "Grupo es")]
-    pub grupo_es: Option<String>,
-
-    #[serde(rename = "Classificação")]
-    pub classificacao: Option<String>,
-
-    #[serde(rename = "Gráfico rápido")]
-    pub grafico_rapido: Option<String>,
-
-    #[serde(rename = "Histórico de dados")]
-    pub historico_de_dados: Option<String>,
-
-    #[serde(rename = "IEC 61850")]
-    pub iec_61850: Option<String>,
-
-    #[serde(rename = "Link")]
-    pub link: Option<String>,
-
-    #[serde(rename = "CDC")]
-    pub cdc: Option<String>,
-
-    pub value: Option<f64>,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -205,11 +77,103 @@ impl ModbusClient {
         })
     }
 
-    pub fn read_device(
-        &mut self,
-    ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn read_device(&mut self) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
         let map_path = get_map_path(&self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
-        Ok(map_vec)
+        let mut result = Vec::new();
+        
+        for mapping in map_vec {
+            let value = if let (Some(tipo), Some(addr)) = (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus) {
+                println!("Tipo: {}, Addr: {}", tipo, addr);
+                match tipo {
+                    "Holding register" => {
+                        let outer_result = self.client.read_holding_registers(addr, 1).await;
+                        match outer_result {
+                            Ok(inner_result) => match inner_result {
+                                Ok(vec) => Some(vec[0] as f64),
+                                Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                },
+                            },
+                            Err(e) => { 
+                                println!("{}", e);
+                                None},
+                        }
+                    }
+                    "Input register" => {
+                        let outer_result = self.client.read_input_registers(addr, 1).await;
+                        match outer_result {
+                            Ok(inner_result) => match inner_result {
+                                Ok(vec) => Some(vec[0] as f64),
+                                Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                },
+                            },
+                            Err(e) => { 
+                                println!("{}", e);
+                                None},
+                        }
+                    }
+                    "Coil" => {
+                        let outer_result = self.client.read_coils(addr, 1).await;
+                        match outer_result {
+                            Ok(inner_result) => match inner_result {
+                                Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                               Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                },
+                            },
+                            Err(e) => { 
+                                println!("{}", e);
+                                None},
+                        }
+                    }
+                    "Discrete input" => {
+                        let outer_result = self.client.read_discrete_inputs(addr, 1).await;
+                        match outer_result {
+                            Ok(inner_result) => match inner_result {
+                                Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                                Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                },
+                            },
+                            Err(e) => { 
+                                println!("{}", e);
+                                None},
+                        }
+                    }
+                    _ => {
+                        println!("Unrecognized tipo: {}", tipo);
+                        None
+                    },
+                }
+            } else {
+                println!("Invalid mapping: {:?} - tipo: {:?}, addr: {:?}", mapping.uuid, mapping.tipo_modbus, mapping.registrador_modbus);
+                None
+            };
+
+            println!("Register: {:?} - Value: {:?}", mapping.registrador_modbus, value);
+            
+            
+            result.push(DeviceData {
+                mapping: mapping.clone(),
+                value,
+            });
+        }
+        
+        Ok(result)
     }
+
+
+    //     pub fn read_device_map(
+    //     &mut self,
+    // ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
+    //     let map_path = get_map_path(&self.device, &self.firmware)?;
+    //     let map_vec = csv_to_vec(&map_path)?;  
+    //     Ok(map_vec)
+    // }
 }

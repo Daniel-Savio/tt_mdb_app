@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
-use crate::maps::{CsvMapping};
 
 
 
@@ -96,7 +95,7 @@ async fn create_connection(info: String, app: AppHandle, state: State<'_, AppSta
     app.emit("connection-trying", true).unwrap();
     
     
-    if let Ok(mut client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
+    if let Ok(client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
         println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
         *state.client.lock().unwrap() = Some(client);
         app.emit("connection-success", "Successfully connected to device").unwrap();
@@ -111,10 +110,12 @@ async fn create_connection(info: String, app: AppHandle, state: State<'_, AppSta
 }
 
 #[tauri::command]
-fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
-    let mut client_guard = state.client.lock().unwrap();
-    if let Some(ref mut client) = *client_guard {
-        match client.read_device() {
+async fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
+    let client_opt = state.client.lock().unwrap().take();
+    if let Some(mut client) = client_opt {
+        let result = client.read_device().await;
+        *state.client.lock().unwrap() = Some(client);
+        match result {
             Ok(data) => {
                 let serialized = serde_json::to_string(&data)
                     .map_err(|e| format!("Falha ao serializar: {}", e))?;
