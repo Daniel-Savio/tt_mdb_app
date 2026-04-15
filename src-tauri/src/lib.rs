@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
+use crate::maps::{CsvMapping};
+
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -108,15 +111,20 @@ async fn create_connection(info: String, app: AppHandle, state: State<'_, AppSta
 }
 
 #[tauri::command]
-async fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
+fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
     let mut client_guard = state.client.lock().unwrap();
     if let Some(ref mut client) = *client_guard {
-        println!("{}", client.device);
-        Ok(format!("{} - {}", client.device, client.firmware))
-    }else {
-        return Err("Cliente Modbus não conectado".to_string())
+        match client.read_device() {
+            Ok(data) => {
+                let serialized = serde_json::to_string(&data)
+                    .map_err(|e| format!("Falha ao serializar: {}", e))?;
+                Ok(serialized)
+            }
+            Err(e) => Err(format!("Erro ao ler dispositivo: {}", e)),
+        }
+    } else {
+        Err("Cliente Modbus não conectado".to_string())
     }
-    
 }
 
 #[tauri::command]

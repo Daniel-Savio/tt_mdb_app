@@ -11,6 +11,7 @@ import {columns} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 
 export function Readings() {
@@ -28,12 +29,18 @@ export function Readings() {
 
   const { data, isPending, error } = useQuery({
     queryKey: ['csvData'],
-    queryFn: () => {
-      invoke("start_reading").then((data) => {
-        console.log(data)
-      }).catch(e => {toast.warning("Nehum dado carregado")})
-    },
+    queryFn: async () => {
+      let csvData: string = await invoke("start_reading")
+      console.log(csvData)
+      return JSON.parse(csvData);
+    }
   })  
+
+  useEffect(() => {
+    if( typeof data === "string") {
+      toast.warning("Erro")
+    }
+  }, [data])
 
 
   return (
