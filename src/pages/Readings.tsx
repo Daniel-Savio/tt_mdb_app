@@ -91,8 +91,7 @@ export function Readings() {
           opcional: row["Opcional"]!,
           nivel_de_acesso: row["Nível de acesso"]!,
           descricao: row[`${lang === "pt-br" ? "Descrição pt" : "Descrição en"}`]!,
-          valor: (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString(),
-          unidade: row["Unidade pt"]!
+          valor: (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString() + " " + row["Unidade pt"]!
         })
       })
       console.log(table_data)
@@ -146,7 +145,7 @@ export function Readings() {
       )}
 
       {data && (
-            <div className="mt-10">
+            <div className="mt-2">
 
               <DataTable columns={columns} data={data} />
             </div>

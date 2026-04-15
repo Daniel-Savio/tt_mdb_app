@@ -8,7 +8,6 @@ export type CsvReadings = {
   tipo_modbus: string
   registrador_modbus: number
   limites: string
-  unidade: string
   opcional: string
   nivel_de_acesso: string
   descricao: string
@@ -45,10 +44,7 @@ export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
     accessorKey: "limites",
     header: lang === "pt-br" ? "Limites" : "Limits",
   },
-    {
-    accessorKey: "unidade",
-    header: lang === "pt-br" ? "Unidade" : "Unit",
-  },
+
   {
     accessorKey: "opcional",
     header: lang === "pt-br" ? "Opcional" : "Optional",
