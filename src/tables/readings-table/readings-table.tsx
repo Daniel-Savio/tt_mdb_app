@@ -5,7 +5,8 @@ import {
   useReactTable,
   VisibilityState,
   ColumnFiltersState,
-  getFilteredRowModel
+  getFilteredRowModel,
+  Row
 } from "@tanstack/react-table"
 
 import {
@@ -26,20 +27,38 @@ import {
 
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { useEffect, useState } from "react"
+import { useEffect, useState, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Eye, Download } from "lucide-react"
 import { useLanguage } from "@/store/useLanguage"
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
 }
 
+// Memoized Row component to prevent re-rendering the whole table when a single value changes
+const MemoizedTableRow = memo(({ row }: { row: Row<any> }) => (
+  <TableRow data-state={row.getIsSelected() && "selected"}>
+    {row.getVisibleCells().map((cell) => (
+      <TableCell key={cell.id}>
+        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+      </TableCell>
+    ))}
+  </TableRow>
+), (prev, next) => {
+  // Only re-render if the row values actually changed
+  return prev.row.getValue("valor") === next.row.getValue("valor") && 
+         prev.row.getIsSelected() === next.row.getIsSelected();
+});
+
 export function DataTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
+  // ... rest of the component state
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     modo: false,
@@ -67,7 +86,7 @@ export function DataTable<TData, TValue>({
     }
   })
 const filteredRows = table.getFilteredRowModel().rows;
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     // Get headers that are currently visible
     const headers = table.getVisibleLeafColumns().map(column => {
       // Trying to get a string label for the header
@@ -86,19 +105,26 @@ const filteredRows = table.getFilteredRowModel().rows;
           return `"${stringValue.replace(/"/g, '""')}"`;
         }
         return stringValue;
-      }).join(",");
+      }).join(";");
     });
 
-    const csvContent = [headers.join(","), ...csvRows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `readings_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = "\uFEFF" + [headers.join(";"), ...csvRows].join("\n");
+    
+    try {
+      const filePath = await save({
+        filters: [{
+          name: 'CSV',
+          extensions: ['csv']
+        }],
+        defaultPath: `readings_export_${new Date().toISOString().split('T')[0]}.csv`
+      });
+
+      if (filePath) {
+        await writeTextFile(filePath, csvContent);
+      }
+    } catch (err) {
+      console.error("Failed to save file:", err);
+    }
   };
 
   useEffect(() => {
@@ -178,16 +204,7 @@ const filteredRows = table.getFilteredRowModel().rows;
           <TableBody className="bg-background ">
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
+                <MemoizedTableRow key={row.id} row={row} />
               ))
             ) : (
               <TableRow>
