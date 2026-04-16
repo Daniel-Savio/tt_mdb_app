@@ -166,85 +166,57 @@ impl ModbusClient {
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
         let map_path = get_map_path(&self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
-        let mut result = Vec::new();
+        
+        let public_mappings: Vec<_> = map_vec.into_iter()
+            .filter(|m| m.nivel_de_acesso.as_deref() == Some("Público"))
+            .collect();
+
+        let mut results = Vec::with_capacity(public_mappings.len());
         let mut index = 0;
-        for mapping in map_vec {
-            if mapping.nivel_de_acesso.as_deref() == Some("Público") {
-                
-                let value = if let (Some(tipo), Some(addr)) =
-                    (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus)
-                {
-                    app.emit("reading_progress", index);
-                    index += 1;
-                    match tipo {
-                        "Holding register" => {
-                            let outer_result = self.client.read_holding_registers(addr, 1).await;
-                            match outer_result {
-                                Ok(inner_result) => match inner_result {
-                                    Ok(vec) => Some(vec[0] as f64),
-                                    Err(_e) => None,
-                                },
-                                Err(_e) => None,
-                            }
-                        }
-                        "Input register" => {
-                            let outer_result = self.client.read_input_registers(addr, 1).await;
-                            match outer_result {
-                                Ok(inner_result) => match inner_result {
-                                    Ok(vec) => Some(vec[0] as f64),
-                                    Err(_e) => None,
-                                },
-                                Err(_e) => None,
-                            }
-                        }
-                        "Coil" => {
-                            let outer_result = self.client.read_coils(addr, 1).await;
-                            match outer_result {
-                                Ok(inner_result) => match inner_result {
-                                    Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                                    Err(e) => {
-                                        println!("{}", e);
-                                        None
-                                    }
-                                },
-                                Err(e) => {
-                                    println!("{}", e);
-                                    None
-                                }
-                            }
-                        }
-                        "Discrete input" => {
-                            let outer_result = self.client.read_discrete_inputs(addr, 1).await;
-                            match outer_result {
-                                Ok(inner_result) => match inner_result {
-                                    Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                                    Err(e) => {
-                                        println!("{}", e);
-                                        None
-                                    }
-                                },
-                                Err(e) => {
-                                    println!("{}", e);
-                                    None
-                                }
-                            }
-                        }
-                        _ => {
-                            println!("Unrecognized tipo: {}", tipo);
-                            None
+
+        for mapping in public_mappings {
+            let value = if let (Some(tipo), Some(addr)) =
+                (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus)
+            {
+                app.emit("reading_progress", index).unwrap_or(());
+                index += 1;
+                match tipo {
+                    "Holding register" => {
+                        match self.client.read_holding_registers(addr, 1).await {
+                            Ok(Ok(vec)) => Some(vec[0] as f64),
+                            _ => None,
                         }
                     }
-                } else {
-                    None
-                };
-                result.push(DeviceData {
-                    mapping: mapping.clone(),
-                    value,
-                });
-            }
+                    "Input register" => {
+                        match self.client.read_input_registers(addr, 1).await {
+                            Ok(Ok(vec)) => Some(vec[0] as f64),
+                            _ => None,
+                        }
+                    }
+                    "Coil" => {
+                        match self.client.read_coils(addr, 1).await {
+                            Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                            _ => None,
+                        }
+                    }
+                    "Discrete input" => {
+                        match self.client.read_discrete_inputs(addr, 1).await {
+                            Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            results.push(DeviceData {
+                mapping,
+                value,
+            });
         }
 
-        Ok(result)
+        Ok(results)
     }
 
     //     pub fn read_device_map(

@@ -11,7 +11,7 @@ import {getColumns, CsvReadings} from "@/tables/readings-table/readings-columns"
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { set } from "react-hook-form";
 import { listen } from "@tauri-apps/api/event";
@@ -77,34 +77,34 @@ export function Readings() {
     queryKey: ['csvData'],
     queryFn: async () => {
       const csvData: string = await invoke("start_reading")
-      const raw_data: RawJsonReading[] = JSON.parse(csvData);
-      let table_data: CsvReadings[] = [];
-     
-      raw_data.forEach((row)=>{
-        const value = (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString()
-        const measurement_unity = row["Unidade pt"] === null ? "" : row["Unidade pt"]
-
-        table_data.push({
-          modo: row["Modo"]!,
-          tratamento: row["Tratamento"]!,
-          tabela_modbus: row["Tabela (Modbus)"]!,
-          tipo_modbus: row["Tipo (Modbus)"]!,
-          registrador_modbus: row["Registrador (Modbus)"]!,
-          limites: row["Limite inferior"]! + " - " + row["Limite superior"]!,
-          opcional: row["Opcional"]!,
-          nivel_de_acesso: row["Nível de acesso"]!,
-          descricao: lang === "pt-br" ? row["Descrição pt"]! : row["Descrição en"]!,
-          valor: value + " " + measurement_unity
-        })
-      })
-      console.log(table_data)
-      set_table_data(table_data)
-      return table_data
+      return JSON.parse(csvData) as RawJsonReading[];
     },
     staleTime: Infinity,
     refetchInterval: isReading ? readingRate : false,
   }) 
-  useEffect(()=>{}, [data])
+
+  const tableData = useMemo(() => {
+    if (!data) return [];
+    
+    return data.map((row) => {
+      const divisor = parseFloat(row["Divisor"] || "1") || 1;
+      const value = ((row["value"] || 0) / divisor).toFixed(2).toString();
+      const measurement_unity = row["Unidade pt"] || "";
+
+      return {
+        modo: row["Modo"] || "",
+        tratamento: row["Tratamento"] || "",
+        tabela_modbus: row["Tabela (Modbus)"] || "",
+        tipo_modbus: row["Tipo (Modbus)"] || "",
+        registrador_modbus: row["Registrador (Modbus)"] || 0,
+        limites: (row["Limite inferior"] || "") + " - " + (row["Limite superior"] || ""),
+        opcional: row["Opcional"] || "",
+        nivel_de_acesso: row["Nível de acesso"] || "",
+        descricao: lang === "pt-br" ? row["Descrição pt"] || "" : row["Descrição en"] || "",
+        valor: value + " " + measurement_unity
+      };
+    });
+  }, [data, lang]);
 
   useEffect(() => {
     // Escuta o evento "progress" vindo do Rust
@@ -166,8 +166,8 @@ export function Readings() {
       )}
 
       {data && isConnected && (
-            <div className={`mt-2 ${isFetching ? "opacity-50 transition-opacity" : ""}`}>
-              <DataTable columns={columns} data={data} />
+            <div className={`mt-2`}>
+              <DataTable columns={columns} data={tableData} />
             </div>
        
       ) 
