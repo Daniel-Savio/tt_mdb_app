@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useGlobal } from "@/store/useGlobal";
 import { useLanguage } from "@/store/useLanguage";
-import { Clock, ListRestart, Loader } from "lucide-react";
+import { Clock, Database, ListRestart, Loader } from "lucide-react";
 import {getColumns, CsvReadings} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { set } from "react-hook-form";
+import { listen } from "@tauri-apps/api/event";
 
 export interface RawJsonReading {
   "UUID": string;
@@ -70,6 +71,7 @@ export function Readings() {
   const lang = useLanguage().language;
   const columns = getColumns(lang);
   const [table_data, set_table_data] = useState<CsvReadings[]>()
+  const [progress, setProgress] = useState(0);
 
   const { data, isPending, error, refetch, isFetching } = useQuery({
     queryKey: ['csvData'],
@@ -101,6 +103,18 @@ export function Readings() {
     }
   }) 
   useEffect(()=>{}, [data])
+
+  useEffect(() => {
+    // Escuta o evento "progress" vindo do Rust
+    const unlisten = listen('reading_progress', (event) => {
+      setProgress(event.payload as number);
+    });
+
+    // Limpa o listener ao desmontar
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
   
 
   return (
@@ -137,17 +151,19 @@ export function Readings() {
       <Separator orientation="horizontal" />
 
       {isPending || isFetching && (
-        <Loader className=" mt-10 animate-spin" />
+        <div className="flex gap-4 items-center justify-center mt-10">
+          <Database/>
+          <span className="flex gap-2 text-center items-center justify-center">{lang == "pt-br" ? "Lendo dados" : "Reading data"} {progress}</span>
+          <Loader className="animate-spin" />
+        </div>
       )}
 
-      {data && isConnected && !isFetching ? (
+      {data && isConnected && !isFetching && (
             <div className="mt-2">
               <DataTable columns={columns} data={data} />
             </div>
        
-      ) : (
-        <></>
-      )
+      ) 
     }
      
     </section>

@@ -14,6 +14,8 @@ export type CsvReadings = {
   valor: string
 
 }
+
+
  
 export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
   {
@@ -23,6 +25,11 @@ export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
   {
     accessorKey: "modo",
     header: lang === "pt-br" ? "Modo" : "Mode",
+
+  },
+    {
+    accessorKey: "registrador_modbus",
+    header: lang === "pt-br" ? "Registrador" : "Modbus",
   },
   {
     accessorKey: "tratamento",
@@ -30,15 +37,11 @@ export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
   },
   {
     accessorKey: "tabela_modbus",
-    header: lang === "pt-br" ? "Tabela Modbus" : "Modbus Table",
+    header: lang === "pt-br" ? "Tabela" : "Table",
   },
   {
     accessorKey: "tipo_modbus",
-    header: lang === "pt-br" ? "Tipo Modbus" : "Modbus Type", 
-  },
-  {
-    accessorKey: "registrador_modbus",
-    header: lang === "pt-br" ? "Registrador Modbus" : "Modbus Register",
+    header: lang === "pt-br" ? "Tipo" : "Type", 
   },
   {
     accessorKey: "limites",
@@ -51,11 +54,14 @@ export const getColumns = (lang: string): ColumnDef<CsvReadings>[] => [
   },
   {
     accessorKey: "nivel_de_acesso",
-    header: lang === "pt-br" ? "Nível de acesso" : "Access Level",
+    header: lang === "pt-br" ? "Acesso" : "Access",
   },
   {
     accessorKey: "valor",
     header: lang === "pt-br" ? "Valor" : "Value",
+    cell: ({ cell, row }) => {
+      return <div><strong>{row.original.valor}</strong></div>
+    }
   },
 
 ]

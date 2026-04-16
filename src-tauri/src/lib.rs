@@ -122,12 +122,11 @@ fn close_connection(app: AppHandle, state: State<'_, AppState>) -> Result<String
     
 }
 
-
 #[tauri::command]
-async fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
+async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<String, String> {
     let client_opt = state.client.lock().unwrap().take();
     if let Some(mut client) = client_opt {
-        let result = client.read_device().await;
+        let result = client.read_device_public_only(app).await;
         *state.client.lock().unwrap() = Some(client);
         match result {
             Ok(data) => {
@@ -160,8 +159,6 @@ fn stop_reading(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Procura o diretório em caminhos relativos possíveis
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { client: Mutex::new(None) })

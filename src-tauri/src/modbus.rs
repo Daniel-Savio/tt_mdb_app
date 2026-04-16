@@ -1,5 +1,6 @@
 use crate::maps::{csv_to_vec, get_map_path, DeviceData};
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 use std::net::SocketAddr;
 use tokio_modbus::{client::Context, prelude::*};
 use tokio_serial::SerialStream;
@@ -77,27 +78,26 @@ impl ModbusClient {
         })
     }
 
-    pub async fn read_device(&mut self) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn read_device(
+        &mut self,
+    ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
         let map_path = get_map_path(&self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
         let mut result = Vec::new();
-        
+
         for mapping in map_vec {
-            let value = if let (Some(tipo), Some(addr)) = (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus) {
+            let value = if let (Some(tipo), Some(addr)) =
+                (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus)
+            {
                 match tipo {
                     "Holding register" => {
                         let outer_result = self.client.read_holding_registers(addr, 1).await;
                         match outer_result {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
-                                Err(e) => {
-                                    
-                                    None
-                                },
+                                Err(e) => None,
                             },
-                            Err(e) => { 
-                                
-                                None},
+                            Err(e) => None,
                         }
                     }
                     "Input register" => {
@@ -105,14 +105,9 @@ impl ModbusClient {
                         match outer_result {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
-                                Err(e) => {
-                                    
-                                    None
-                                },
+                                Err(e) => None,
                             },
-                            Err(e) => { 
-                                
-                                None},
+                            Err(e) => None,
                         }
                     }
                     "Coil" => {
@@ -120,14 +115,15 @@ impl ModbusClient {
                         match outer_result {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                               Err(e) => {
+                                Err(e) => {
                                     println!("{}", e);
                                     None
-                                },
+                                }
                             },
-                            Err(e) => { 
+                            Err(e) => {
                                 println!("{}", e);
-                                None},
+                                None
+                            }
                         }
                     }
                     "Discrete input" => {
@@ -138,38 +134,124 @@ impl ModbusClient {
                                 Err(e) => {
                                     println!("{}", e);
                                     None
-                                },
+                                }
                             },
-                            Err(e) => { 
+                            Err(e) => {
                                 println!("{}", e);
-                                None},
+                                None
+                            }
                         }
                     }
                     _ => {
                         println!("Unrecognized tipo: {}", tipo);
                         None
-                    },
+                    }
                 }
             } else {
                 None
             };
-            
-            
+
             result.push(DeviceData {
                 mapping: mapping.clone(),
                 value,
             });
         }
-        
+
         Ok(result)
     }
 
+    /// Returns only the public registers of the device
+    pub async fn read_device_public_only(
+        &mut self,  app: tauri::AppHandle
+    ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
+        let map_path = get_map_path(&self.device, &self.firmware)?;
+        let map_vec = csv_to_vec(&map_path)?;
+        let mut result = Vec::new();
+        let mut index = 0;
+        for mapping in map_vec {
+            if mapping.nivel_de_acesso.as_deref() == Some("Público") {
+                
+                let value = if let (Some(tipo), Some(addr)) =
+                    (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus)
+                {
+                    app.emit("reading_progress", index);
+                    index += 1;
+                    match tipo {
+                        "Holding register" => {
+                            let outer_result = self.client.read_holding_registers(addr, 1).await;
+                            match outer_result {
+                                Ok(inner_result) => match inner_result {
+                                    Ok(vec) => Some(vec[0] as f64),
+                                    Err(_e) => None,
+                                },
+                                Err(_e) => None,
+                            }
+                        }
+                        "Input register" => {
+                            let outer_result = self.client.read_input_registers(addr, 1).await;
+                            match outer_result {
+                                Ok(inner_result) => match inner_result {
+                                    Ok(vec) => Some(vec[0] as f64),
+                                    Err(_e) => None,
+                                },
+                                Err(_e) => None,
+                            }
+                        }
+                        "Coil" => {
+                            let outer_result = self.client.read_coils(addr, 1).await;
+                            match outer_result {
+                                Ok(inner_result) => match inner_result {
+                                    Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        None
+                                    }
+                                },
+                                Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                }
+                            }
+                        }
+                        "Discrete input" => {
+                            let outer_result = self.client.read_discrete_inputs(addr, 1).await;
+                            match outer_result {
+                                Ok(inner_result) => match inner_result {
+                                    Ok(vec) => Some(if vec[0] { 1.0 } else { 0.0 }),
+                                    Err(e) => {
+                                        println!("{}", e);
+                                        None
+                                    }
+                                },
+                                Err(e) => {
+                                    println!("{}", e);
+                                    None
+                                }
+                            }
+                        }
+                        _ => {
+                            println!("Unrecognized tipo: {}", tipo);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                result.push(DeviceData {
+                    mapping: mapping.clone(),
+                    value,
+                });
+            }
+        }
+
+        Ok(result)
+    }
 
     //     pub fn read_device_map(
     //     &mut self,
     // ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
     //     let map_path = get_map_path(&self.device, &self.firmware)?;
-    //     let map_vec = csv_to_vec(&map_path)?;  
+    //     let map_vec = csv_to_vec(&map_path)?;
     //     Ok(map_vec)
     // }
 }

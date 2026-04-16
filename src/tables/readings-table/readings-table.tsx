@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Eye } from "lucide-react"
 import { useLanguage } from "@/store/useLanguage"
@@ -38,7 +38,14 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    modo: false,
+    tratamento: false,
+    tabela_modbus: false,
+    opcional: false,
+    nivel_de_acesso: false,
+    limites: false,
+  })
 
   const lang = useLanguage().language
 
@@ -52,18 +59,22 @@ export function DataTable<TData, TValue>({
     }
   })
 
+  useEffect(()=>{
+  
+  }, [lang])
+
 
 
   return (
     <section>
-      <span className="">
+      <span className="flex gap-2 items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
               <Eye />{lang === "pt-br" ? "Colunas" : "Columns"}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent className="w-full" align="center">
             {table
               .getAllColumns()
               .filter(
@@ -85,12 +96,12 @@ export function DataTable<TData, TValue>({
               })}
           </DropdownMenuContent>
         </DropdownMenu>
-
+        <h1>Total: {data.length}</h1>
       </span>
       <ScrollArea className="h-110 w-300 mt-2 rounded-md border">
 
         <Table className="">
-          <TableHeader className="bg-card">
+          <TableHeader title="Data" className="bg-card">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
