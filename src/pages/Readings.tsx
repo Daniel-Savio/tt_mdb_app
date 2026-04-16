@@ -108,15 +108,22 @@ export function Readings() {
 
   useEffect(() => {
     // Escuta o evento "progress" vindo do Rust
-    const unlisten = listen('reading_progress', (event) => {
+    const unlistenProgress = listen('reading_progress', (event) => {
       setProgress(event.payload as number);
     });
 
-    // Limpa o listener ao desmontar
+    // Escuta o evento para parar leitura (ex: perda de comunicação)
+    const unlistenStop = listen('reading-stop', () => {
+      setReading(false);
+      toast.error(lang === "pt-br" ? "Comunicação perdida" : "Communication lost");
+    });
+
+    // Limpa os listeners ao desmontar
     return () => {
-      unlisten.then((f) => f());
+      unlistenProgress.then((f) => f());
+      unlistenStop.then((f) => f());
     };
-  }, []);
+  }, [lang, setReading]);
   
   return (
     <section className="flex flex-col items-center justify-center h-full">

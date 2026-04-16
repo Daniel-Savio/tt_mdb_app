@@ -126,7 +126,7 @@ fn close_connection(app: AppHandle, state: State<'_, AppState>) -> Result<String
 async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<String, String> {
     let client_opt = state.client.lock().unwrap().take();
     if let Some(mut client) = client_opt {
-        let result = client.read_device_public_only(app).await;
+        let result = client.read_device_public_only(app.clone()).await;
         *state.client.lock().unwrap() = Some(client);
         match result {
             Ok(data) => {
@@ -134,7 +134,10 @@ async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<Str
                     .map_err(|e| format!("Falha ao serializar: {}", e))?;
                 Ok(serialized)
             }
-            Err(e) => Err(format!("Erro ao ler dispositivo: {}", e)),
+            Err(e) => {
+                app.emit("reading-stop", true).unwrap();
+                Err(format!("Erro ao ler dispositivo: {}", e))
+            }
         }
     } else {
         Err("Cliente Modbus não conectado".to_string())

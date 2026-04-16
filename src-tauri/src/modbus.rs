@@ -184,25 +184,29 @@ impl ModbusClient {
                     "Holding register" => {
                         match self.client.read_holding_registers(addr, 1).await {
                             Ok(Ok(vec)) => Some(vec[0] as f64),
-                            _ => None,
+                            Ok(Err(_)) => None, // Erro lógico Modbus (ex: addr inválido), continua
+                            Err(e) => return Err(Box::new(e)), // Erro de comunicação real, interrompe
                         }
                     }
                     "Input register" => {
                         match self.client.read_input_registers(addr, 1).await {
                             Ok(Ok(vec)) => Some(vec[0] as f64),
-                            _ => None,
+                            Ok(Err(_)) => None,
+                            Err(e) => return Err(Box::new(e)),
                         }
                     }
                     "Coil" => {
                         match self.client.read_coils(addr, 1).await {
                             Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                            _ => None,
+                            Ok(Err(_)) => None,
+                            Err(e) => return Err(Box::new(e)),
                         }
                     }
                     "Discrete input" => {
                         match self.client.read_discrete_inputs(addr, 1).await {
                             Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                            _ => None,
+                            Ok(Err(_)) => None,
+                            Err(e) => return Err(Box::new(e)),
                         }
                     }
                     _ => None,
