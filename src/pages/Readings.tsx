@@ -67,7 +67,7 @@ export function Readings() {
     console.log("Auto Reading:", checked);
     setReading(checked);
   }
-  const { isConnecting, isReading, isConnected, setReading } = useGlobal();
+  const { isConnecting, isReading, isConnected, setReading, readingRate, setReadingRate } = useGlobal();
   const lang = useLanguage().language;
   const columns = getColumns(lang);
   const [table_data, set_table_data] = useState<CsvReadings[]>()
@@ -100,7 +100,9 @@ export function Readings() {
       console.log(table_data)
       set_table_data(table_data)
       return table_data
-    }
+    },
+    staleTime: Infinity,
+    refetchInterval: isReading ? readingRate : false,
   }) 
   useEffect(()=>{}, [data])
 
@@ -132,7 +134,12 @@ export function Readings() {
             <Label>{lang === "pt-br" ? "Leitura automática" : "Auto Reading"}</Label>
             <span className="flex gap-4 items-center">
               <InputGroup className="gap-2">
-                <InputGroupInput className="max-w-20" disabled={!isConnected || isReading} defaultValue={5000} />
+                <InputGroupInput 
+                  className="max-w-20" 
+                  disabled={!isConnected || isReading} 
+                  value={readingRate} 
+                  onChange={(e) => setReadingRate(parseInt(e.target.value) || 0)}
+                />
                 <InputGroupAddon >
                   <Clock />
                 </InputGroupAddon>
@@ -150,7 +157,7 @@ export function Readings() {
 
       <Separator orientation="horizontal" />
 
-      {isPending || isFetching && (
+      {((isPending || isFetching) && !data) && (
         <div className="flex gap-4 items-center justify-center mt-10">
           <Database/>
           <span className="flex gap-2 text-center items-center justify-center">{lang == "pt-br" ? "Lendo dados" : "Reading data"} {progress}</span>
@@ -158,8 +165,8 @@ export function Readings() {
         </div>
       )}
 
-      {data && isConnected && !isFetching && (
-            <div className="mt-2">
+      {data && isConnected && (
+            <div className={`mt-2 ${isFetching ? "opacity-50" : ""}`}>
               <DataTable columns={columns} data={data} />
             </div>
        
