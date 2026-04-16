@@ -118,7 +118,6 @@ export function Readings() {
     };
   }, []);
   
-
   return (
     <section className="flex flex-col items-center justify-center h-full">
       <header className="flex flex-row items-center justify-between w-full mb-1">
@@ -126,7 +125,7 @@ export function Readings() {
         <h1 className="text-lg font-bold">{lang === "pt-br" ? "Leituras" : "Readings"}</h1>
 
         <div className="flex gap-4  items-end justify-center">
-          <Button disabled={!isConnected || isReading} size={"lg"} variant="outline" onClick={() => {set_table_data([]); refetch()}}>
+          <Button disabled={!isConnected || isReading || isFetching} size={"lg"} variant="outline" onClick={() => {refetch()}}>
             <ListRestart className="font-bold size-5" />
           </Button>
 

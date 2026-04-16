@@ -40,25 +40,28 @@ interface DataTableProps<TData, TValue> {
 }
 
 // Memoized Row component to prevent re-rendering the whole table when a single value changes
-const MemoizedTableRow = memo(({ row }: { row: Row<any> }) => (
+const MemoizedTableRow = memo(({ row, visibility }: { row: Row<any>, visibility: VisibilityState }) => (
   <TableRow data-state={row.getIsSelected() && "selected"}>
     {row.getVisibleCells().map((cell) => (
-      <TableCell key={cell.id}>
+      <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
         {flexRender(cell.column.columnDef.cell, cell.getContext())}
       </TableCell>
     ))}
   </TableRow>
 ), (prev, next) => {
-  // Only re-render if the row values actually changed
-  return prev.row.getValue("valor") === next.row.getValue("valor") && 
-         prev.row.getIsSelected() === next.row.getIsSelected();
+  // Re-render if:
+  // 1. The value changed
+  // 2. The selection state changed
+  // 3. The column visibility changed
+  return prev.row.getValue("valor") === next.row.getValue("valor") &&
+    prev.row.getIsSelected() === next.row.getIsSelected() &&
+    prev.visibility === next.visibility;
 });
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-}: DataTableProps<TData, TValue>) {
-  // ... rest of the component state
+}: DataTableProps<TData, TValue>) {  // ... rest of the component state
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     modo: false,
@@ -180,7 +183,7 @@ const filteredRows = table.getFilteredRowModel().rows;
         </DropdownMenu>
         <h1>{filteredRows.length}/{data.length}</h1>
       </span>
-      <ScrollArea className="h-110 w-300 mt-2 rounded-md border">
+      <ScrollArea className="h-130 w-300 mt-2 rounded-md border">
 
         <Table className="">
           <TableHeader title="Data" className="bg-card">
@@ -204,7 +207,7 @@ const filteredRows = table.getFilteredRowModel().rows;
           <TableBody className="bg-background ">
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <MemoizedTableRow key={row.id} row={row} />
+                <MemoizedTableRow key={row.id} row={row} visibility={columnVisibility} />
               ))
             ) : (
               <TableRow>
