@@ -104,10 +104,24 @@ async fn create_connection(info: String, app: AppHandle, state: State<'_, AppSta
         app.emit("connection-error", "Failed to create Modbus client").unwrap();
         Err("Failed to create Modbus client".to_string())
     }
-    
 
+}
+
+#[tauri::command]
+fn close_connection(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    let mut _client_opt = state.client.lock().unwrap();
+    if let Some(client) = _client_opt.take() {
+        println!("Closing Modbus client for device: {}-{}", client.device, client.firmware);
+        app.emit("reading-stop", true).unwrap();
+        return Ok(String::from("Closing connection"));
+    } else {
+        println!("No Modbus client to close");
+        app.emit("reading-stop", true).unwrap();
+        return Err("No Modbus client to close".to_string());
+    }
     
 }
+
 
 #[tauri::command]
 async fn start_reading(state: State<'_, AppState>) -> Result<String, String> {
@@ -151,7 +165,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { client: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![get_maps, create_connection, get_serial_ports, start_reading, stop_reading])
+        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, stop_reading])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

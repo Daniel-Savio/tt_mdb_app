@@ -11,8 +11,9 @@ import {getColumns, CsvReadings} from "@/tables/readings-table/readings-columns"
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { set } from "react-hook-form";
 
 export interface RawJsonReading {
   "UUID": string;
@@ -61,10 +62,6 @@ export interface RawJsonReading {
 
 export function Readings() {
 
-  function refreshData() {
-    console.log("Refreshing data...");
-  }
-
   function startReading(checked: boolean) {
     console.log("Auto Reading:", checked);
     setReading(checked);
@@ -72,8 +69,9 @@ export function Readings() {
   const { isConnecting, isReading, isConnected, setReading } = useGlobal();
   const lang = useLanguage().language;
   const columns = getColumns(lang);
+  const [table_data, set_table_data] = useState<CsvReadings[]>()
 
-  const { data, isPending, error } = useQuery({
+  const { data, isPending, error, refetch, isFetching } = useQuery({
     queryKey: ['csvData'],
     queryFn: async () => {
       const csvData: string = await invoke("start_reading")
@@ -81,6 +79,9 @@ export function Readings() {
       let table_data: CsvReadings[] = [];
      
       raw_data.forEach((row)=>{
+        const value = (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString()
+        const measurement_unity = row["Unidade pt"] === null ? "" : row["Unidade pt"]
+
         table_data.push({
           modo: row["Modo"]!,
           tratamento: row["Tratamento"]!,
@@ -90,21 +91,17 @@ export function Readings() {
           limites: row["Limite inferior"]! + " - " + row["Limite superior"]!,
           opcional: row["Opcional"]!,
           nivel_de_acesso: row["Nível de acesso"]!,
-          descricao: row[`${lang === "pt-br" ? "Descrição pt" : "Descrição en"}`]!,
-          valor: (row["value"]!/ parseFloat(row["Divisor"]!)).toFixed(2).toString() + " " + row["Unidade pt"]!
+          descricao: lang === "pt-br" ? row["Descrição pt"]! : row["Descrição en"]!,
+          valor: value + " " + measurement_unity
         })
       })
       console.log(table_data)
+      set_table_data(table_data)
       return table_data
     }
-  })  
-
-  useEffect(() => {
-    if( typeof data === "string") {
-      toast.warning("Erro")
-    }
-  }, [data])
-
+  }) 
+  useEffect(()=>{}, [data])
+  
 
   return (
     <section className="flex flex-col items-center justify-center h-full">
@@ -113,7 +110,7 @@ export function Readings() {
         <h1 className="text-lg font-bold">{lang === "pt-br" ? "Leituras" : "Readings"}</h1>
 
         <div className="flex gap-4  items-end justify-center">
-          <Button disabled={!isConnected || isReading} size={"lg"} variant="outline" onClick={() => refreshData()}>
+          <Button disabled={!isConnected || isReading} size={"lg"} variant="outline" onClick={() => {set_table_data([]); refetch()}}>
             <ListRestart className="font-bold size-5" />
           </Button>
 
@@ -139,18 +136,19 @@ export function Readings() {
 
       <Separator orientation="horizontal" />
 
-      {isPending && (
+      {isPending || isFetching && (
         <Loader className=" mt-10 animate-spin" />
-
       )}
 
-      {data && (
+      {data && isConnected && !isFetching ? (
             <div className="mt-2">
-
               <DataTable columns={columns} data={data} />
             </div>
        
-      )}
+      ) : (
+        <></>
+      )
+    }
      
     </section>
   );

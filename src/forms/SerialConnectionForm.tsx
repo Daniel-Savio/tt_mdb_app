@@ -38,7 +38,7 @@ export function SerialConnectionForm() {
 
     function disconnect() {
         setConnected(false);
-        invoke("stop_reading").then(() => {
+        invoke("close_connection").then(() => {
             console.log("Stop reading signal sent to Rust");
             setReading(false);
             toast.info(
