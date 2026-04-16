@@ -157,7 +157,7 @@ export function Readings() {
 
       <Separator orientation="horizontal" />
 
-      {((isPending || isFetching) && !data) && (
+      {(isPending || isFetching) && (
         <div className="flex gap-4 items-center justify-center mt-10">
           <Database/>
           <span className="flex gap-2 text-center items-center justify-center">{lang == "pt-br" ? "Lendo dados" : "Reading data"} {progress}</span>
@@ -166,7 +166,7 @@ export function Readings() {
       )}
 
       {data && isConnected && (
-            <div className={`mt-2 ${isFetching ? "opacity-50" : ""}`}>
+            <div className={`mt-2 ${isFetching ? "opacity-50 transition-opacity" : ""}`}>
               <DataTable columns={columns} data={data} />
             </div>
        
