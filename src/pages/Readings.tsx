@@ -88,9 +88,16 @@ export function Readings() {
     if (!data) return [];
     
     return data.map((row) => {
+      const conversion = lang === "pt-br" ? row["Conversão pt"] : row["Conversão en"];
+      const each_conversion = conversion?.split("\\")
       const divisor = parseFloat(row["Divisor"] || "1") || 1;
-      const value = ((row["value"] || 0) / divisor).toFixed(2).toString();
+      const value = !each_conversion ? ((row["value"] || 0) / divisor).toFixed(2).toString() : each_conversion[row["value"]];
       const measurement_unity = row["Unidade pt"] || "";
+
+
+      
+
+      console.log(each_conversion)
 
       return {
         modo: row["Modo"] || "",
@@ -102,7 +109,7 @@ export function Readings() {
         opcional: row["Opcional"] || "",
         nivel_de_acesso: row["Nível de acesso"] || "",
         descricao: lang === "pt-br" ? row["Descrição pt"] || "" : row["Descrição en"] || "",
-        valor: value + " " + measurement_unity
+        valor: (value + " " + measurement_unity)
       };
     });
   }, [data, lang]);
