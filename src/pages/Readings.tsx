@@ -89,17 +89,20 @@ export function Readings() {
     
     return data.map((row) => {
       const conversion = lang === "pt-br" ? row["Conversão pt"] : row["Conversão en"];
-      const each_conversion = conversion?.split("\\")
+      const each_conversion = conversion?.split("\\");
       const divisor = parseFloat(row["Divisor"] || "1") || 1;
-      const value = !each_conversion ? ((row["value"] || 0) / divisor).toFixed(2).toString() : each_conversion[row["value"]];
+      const rawValue = row["value"] ?? 0;
+      const value = !each_conversion ? (rawValue / divisor).toFixed(2).toString() : (rawValue < each_conversion.length ? each_conversion[rawValue] : "N/A");
       const measurement_unity = row["Unidade pt"] || "";
-
-
-      
-
-      console.log(each_conversion)
+      const status = () => {
+        const val = row["value"];
+        const min = parseFloat(row["Limite inferior"] || "0");
+        const max = parseFloat(row["Limite superior"] || "0");
+        return val !== undefined && !isNaN(min) && !isNaN(max) && val >= min && val <= max;
+      }
 
       return {
+        status: status(),
         modo: row["Modo"] || "",
         tratamento: row["Tratamento"] || "",
         tabela_modbus: row["Tabela (Modbus)"] || "",

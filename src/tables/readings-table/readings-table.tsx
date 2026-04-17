@@ -186,7 +186,7 @@ const filteredRows = table.getFilteredRowModel().rows;
       <ScrollArea className="h-130 w-300 mt-2 rounded-md border">
 
         <Table className="">
-          <TableHeader title="Data" className="bg-card">
+          <TableHeader title="Data" className="bg-card sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
