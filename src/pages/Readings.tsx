@@ -5,15 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useGlobal } from "@/store/useGlobal";
+import { useModbusConnection } from "@/store/useModbusConnection";
 import { useLanguage } from "@/store/useLanguage";
 import { Clock, Database, ListRestart, Loader } from "lucide-react";
-import {getColumns, CsvReadings} from "@/tables/readings-table/readings-columns";
+import {getColumns} from "@/tables/readings-table/readings-columns";
 import { DataTable } from "@/tables/readings-table/readings-table";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useEffect, useState, useMemo } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { set } from "react-hook-form";
 import { listen } from "@tauri-apps/api/event";
 
 export interface RawJsonReading {
@@ -67,16 +66,18 @@ export function Readings() {
     console.log("Auto Reading:", checked);
     setReading(checked);
   }
-  const { isConnecting, isReading, isConnected, setReading, readingRate, setReadingRate } = useGlobal();
+  const {isReading, isConnected, setConnected, setReading, readingRate, setReadingRate } = useGlobal();
+  const {connection} = useModbusConnection()
   const lang = useLanguage().language;
   const columns = getColumns(lang);
-  const [table_data, set_table_data] = useState<CsvReadings[]>()
+  const [timestamp, setTimestamp] = useState<Date | null>()
   const [progress, setProgress] = useState(0);
 
-  const { data, isPending, error, refetch, isFetching } = useQuery({
+  const { data, isPending, refetch, isFetching } = useQuery({
     queryKey: ['csvData'],
     queryFn: async () => {
       const csvData: string = await invoke("start_reading")
+      setTimestamp(new Date())
       return JSON.parse(csvData) as RawJsonReading[];
     },
     staleTime: Infinity,
@@ -115,6 +116,8 @@ export function Readings() {
     // Escuta o evento para parar leitura (ex: perda de comunicação)
     const unlistenStop = listen('reading-stop', () => {
       setReading(false);
+      setConnected(false);
+      
       toast.error(lang === "pt-br" ? "Comunicação perdida" : "Communication lost");
     });
 
@@ -129,7 +132,8 @@ export function Readings() {
     <section className="flex flex-col items-center justify-center h-full">
       <header className="flex flex-row items-center justify-between w-full mb-1">
 
-        <h1 className="text-lg font-bold">{lang === "pt-br" ? "Leituras" : "Readings"}</h1>
+        <h1 className="text-lg font-bold">{lang === "pt-br" ? "Leituras:" : "Readings:"} {connection.device} - {connection.firmware}</h1>
+        <span className="text-muted-foreground text-sm"> {lang === "pt-br" ? "Última leitura:" : "Last reading:"  } <strong className="underline font-normal">{timestamp?.toLocaleString() || ""}</strong></span>
 
         <div className="flex gap-4  items-end justify-center">
           <Button disabled={!isConnected || isReading || isFetching} size={"lg"} variant="outline" onClick={() => {refetch()}}>

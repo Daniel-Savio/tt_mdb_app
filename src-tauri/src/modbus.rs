@@ -1,7 +1,7 @@
 use crate::maps::{csv_to_vec, get_map_path, DeviceData};
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
 use std::net::SocketAddr;
+use tauri::Emitter;
 use tokio_modbus::{client::Context, prelude::*};
 use tokio_serial::SerialStream;
 
@@ -160,70 +160,121 @@ impl ModbusClient {
         Ok(result)
     }
 
+    /// Reads a single Modbus register based on its type and optional treatment (bitmask).
+    pub async fn read_single_register(
+        &mut self,
+        tipo_modbus: &str,
+        addr: u16,
+        tratamento: Option<&str>,
+    ) -> Result<Option<f64>, Box<dyn std::error::Error + Send + Sync>> {
+        match tipo_modbus {
+            "Holding register" => {
+                let is_bitmask = tratamento.map_or(false, |t| t.starts_with("0x"));
+
+                if is_bitmask {
+                    let tratamento_str = tratamento.unwrap();
+                    let bit_index = Self::get_bit_index(tratamento_str).unwrap();
+
+                    match self.client.read_holding_registers(addr, 1).await {
+                        Ok(Ok(vec)) => {
+                            let register_value = vec[0] as u16;
+                            let bit = (register_value >> bit_index) & 1;
+                            Ok(Some(bit as f64)) // Wrap in Ok(Some(...))
+                        }
+                        Ok(Err(_)) => Ok(None),
+                        Err(e) => Err(Box::new(e)),
+                    }
+                } else {
+                    match self.client.read_holding_registers(addr, 1).await {
+                        Ok(Ok(vec)) => Ok(Some(vec[0] as f64)),
+                        Ok(Err(_)) => Ok(None),
+                        Err(e) => Err(Box::new(e)),
+                    }
+                }
+            }
+            "Input register" => match self.client.read_input_registers(addr, 1).await {
+                Ok(Ok(vec)) => Ok(Some(vec[0] as f64)),
+                Ok(Err(_)) => Ok(None),
+                Err(e) => Err(Box::new(e)),
+            },
+            "Coil" => match self.client.read_coils(addr, 1).await {
+                Ok(Ok(vec)) => Ok(Some(if vec[0] { 1.0 } else { 0.0 })),
+                Ok(Err(_)) => Ok(None),
+                Err(e) => Err(Box::new(e)),
+            },
+            "Discrete input" => match self.client.read_discrete_inputs(addr, 1).await {
+                Ok(Ok(vec)) => Ok(Some(if vec[0] { 1.0 } else { 0.0 })),
+                Ok(Err(_)) => Ok(None),
+                Err(e) => Err(Box::new(e)),
+            },
+            _ => Ok(None), // Unknown type
+        }
+    }
+
+
+    /// Recebe uma string hexadecimal 0x e retorna a posição do bit ativo em 1
+    pub fn get_bit_index(hex_str: &str) -> Result<u32, &'static str> {
+        // 1. Clean the string and remove the prefix
+        let trimmed = hex_str.trim();
+        let without_prefix = trimmed
+            .strip_prefix("0x")
+            .or_else(|| trimmed.strip_prefix("0X"))
+            .unwrap_or(trimmed);
+
+        // 2. Parse into a 16-bit unsigned integer (u16)
+        let value = match u16::from_str_radix(without_prefix, 16) {
+            Ok(v) => v,
+            Err(_) => return Err("Failed to parse the hexadecimal string"),
+        };
+
+        // 3. Safety check: Ensure exactly one bit is set
+        // This prevents errors if someone passes "0x0000" or "0x0003" (which has two bits set)
+        if value.count_ones() != 1 {
+            return Err("The value must contain exactly one set bit");
+        }
+
+        // 4. Return the index using trailing_zeros()
+        Ok(value.trailing_zeros())
+    }
+
     /// Returns only the public registers of the device
-    pub async fn read_device_public_only(
-        &mut self,  app: tauri::AppHandle
+pub async fn read_device_public_only(
+        &mut self,
+        app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
         let map_path = get_map_path(&self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
-        
-        let public_mappings: Vec<_> = map_vec.into_iter()
+
+        let public_mappings: Vec<_> = map_vec
+            .into_iter()
             .filter(|m| m.nivel_de_acesso.as_deref() == Some("Público"))
             .collect();
 
         let mut results = Vec::with_capacity(public_mappings.len());
-        let mut index = 0;
+        let mut progress_index = 0;
 
         for mapping in public_mappings {
-            let value = if let (Some(tipo), Some(addr)) =
-                (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus)
-            {
-                app.emit("reading_progress", index).unwrap_or(());
-                index += 1;
-                match tipo {
-                    "Holding register" => {
-                        match self.client.read_holding_registers(addr, 1).await {
-                            Ok(Ok(vec)) => Some(vec[0] as f64),
-                            Ok(Err(_)) => None, // Erro lógico Modbus (ex: addr inválido), continua
-                            Err(e) => return Err(Box::new(e)), // Erro de comunicação real, interrompe
-                        }
-                    }
-                    "Input register" => {
-                        match self.client.read_input_registers(addr, 1).await {
-                            Ok(Ok(vec)) => Some(vec[0] as f64),
-                            Ok(Err(_)) => None,
-                            Err(e) => return Err(Box::new(e)),
-                        }
-                    }
-                    "Coil" => {
-                        match self.client.read_coils(addr, 1).await {
-                            Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                            Ok(Err(_)) => None,
-                            Err(e) => return Err(Box::new(e)),
-                        }
-                    }
-                    "Discrete input" => {
-                        match self.client.read_discrete_inputs(addr, 1).await {
-                            Ok(Ok(vec)) => Some(if vec[0] { 1.0 } else { 0.0 }),
-                            Ok(Err(_)) => None,
-                            Err(e) => return Err(Box::new(e)),
-                        }
-                    }
-                    _ => None,
+            let (tipo, addr) = match (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus) {
+                (Some(t), Some(a)) => (t, a),
+                _ => {
+                    results.push(DeviceData { mapping, value: None });
+                    continue; 
                 }
-            } else {
-                None
             };
-            results.push(DeviceData {
-                mapping,
-                value,
-            });
+
+            let _ = app.emit("reading_progress", progress_index);
+            progress_index += 1;
+
+            // The massive block is now replaced by this single, elegant line:
+            let value = self.read_single_register(tipo, addr, mapping.tratamento.as_deref()).await?;
+
+            results.push(DeviceData { mapping, value });
         }
 
         Ok(results)
     }
-
-    //     pub fn read_device_map(
+    
+    
     //     &mut self,
     // ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
     //     let map_path = get_map_path(&self.device, &self.firmware)?;
