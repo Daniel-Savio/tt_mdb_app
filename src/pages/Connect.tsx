@@ -15,8 +15,9 @@ import { SerialConnectionForm } from "@/forms/SerialConnectionForm";
 import { toast } from "sonner";
 
 
+
 export function Connect() {
-  const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
+  const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading, offlineDevice, setOfflineDevice, offlineFirmware, setOfflineFirmware} = useGlobal();
   const lang = useLanguage((state) => state.language);
   const { connection, setDevice, setFirmware } = useModbusConnection();
   const [availableFirmwares, setAvailableFirmwares] = useState<string[]>([]);
@@ -31,6 +32,7 @@ export function Connect() {
 
   const handleDeviceSelect = (iedName: string) => {
     setDevice(iedName);
+    setOfflineDevice(iedName);
     setFirmware("");
 
     const ied = iedsJson.IEDs.find(
@@ -123,7 +125,7 @@ export function Connect() {
             <DropdownMenuContent align="end" className="">
               <DropdownMenuGroup>
                 {connection.device && availableFirmwares.length > 0 ? availableFirmwares.map((fw: string) => (
-                  <DropdownMenuItem key={fw} onClick={() => { setFirmware(fw) }}>{fw}</DropdownMenuItem>
+                  <DropdownMenuItem key={fw} onClick={() => { setFirmware(fw); setOfflineFirmware(fw); }}>{fw}</DropdownMenuItem>
                 )) : <DropdownMenuItem disabled>{lang === "pt-br" ? (connection.device ? "Nenhum firmware" : "Selecione um IED primeiro") : (connection.device ? "No firmware" : "Select an IED first")}</DropdownMenuItem>}
 
               </DropdownMenuGroup>
@@ -177,11 +179,5 @@ export function Connect() {
     </div>
   );
 }
-function setConnected(arg0: boolean) {
-  throw new Error("Function not implemented.");
-}
 
-function setReading(arg0: boolean) {
-  throw new Error("Function not implemented.");
-}
 

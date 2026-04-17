@@ -145,6 +145,21 @@ async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<Str
 }
 
 #[tauri::command]
+fn public_parameters(device: String, firmware: String) -> Result<String, String>{
+    let result = maps::get_public_parameters(&device, &firmware);
+    match result {
+        Ok(data) => {
+            let serialized = serde_json::to_string(&data)
+                    .map_err(|e| format!("Falha ao serializar: {}", e))?;
+                Ok(serialized)
+        },
+        Err(e) => {
+            Err(format!("Erro ao ler dispositivo: {}", e))
+        }
+    }
+}
+ 
+#[tauri::command]
 fn get_serial_ports() -> Vec<String> {
     match tokio_serial::available_ports() {
         Ok(ports) => ports.into_iter().map(|p| p.port_name).collect(),
@@ -154,6 +169,8 @@ fn get_serial_ports() -> Vec<String> {
         }
     }
 }
+
+
 
 #[tauri::command]
 fn stop_reading(app: AppHandle) {
@@ -167,7 +184,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { client: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, stop_reading])
+        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, public_parameters, stop_reading])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

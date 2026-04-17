@@ -230,3 +230,34 @@ pub fn csv_to_vec(
 
     Ok(mappings)
 }
+
+/// Recebe o nome e o firmware e retorna todos os parametros públicos com o valor default do mapa do equipamento
+pub fn get_public_parameters(
+    device: &str,
+    firmware: &str,
+) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
+    let map_path = get_map_path(&device, &firmware)?;
+    let map_vec = csv_to_vec(&map_path)?;
+
+    let public_parameters_mappings: Vec<_> = map_vec
+        .into_iter()
+        .filter(|m| {
+            m.nivel_de_acesso.as_deref() == Some("Público") && m.modo.as_deref() == Some("RW")
+        })
+        .collect();
+
+    let mut results = Vec::with_capacity(public_parameters_mappings.len());
+    for mapping in public_parameters_mappings {
+        let parsed_value = mapping
+            .valor_default
+            .as_ref()
+            .and_then(|v| v.parse::<f64>().ok());
+
+        results.push(DeviceData {
+            mapping,
+            value: parsed_value,
+        });
+    }
+
+    Ok(results)
+}

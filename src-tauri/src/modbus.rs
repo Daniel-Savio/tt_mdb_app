@@ -211,7 +211,6 @@ impl ModbusClient {
         }
     }
 
-
     /// Recebe uma string hexadecimal 0x e retorna a posição do bit ativo em 1
     pub fn get_bit_index(hex_str: &str) -> Result<u32, &'static str> {
         // 1. Clean the string and remove the prefix
@@ -238,7 +237,7 @@ impl ModbusClient {
     }
 
     /// Returns only the public registers of the device
-pub async fn read_device_public_only(
+    pub async fn read_device_public_only(
         &mut self,
         app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
@@ -257,8 +256,11 @@ pub async fn read_device_public_only(
             let (tipo, addr) = match (mapping.tipo_modbus.as_deref(), mapping.registrador_modbus) {
                 (Some(t), Some(a)) => (t, a),
                 _ => {
-                    results.push(DeviceData { mapping, value: None });
-                    continue; 
+                    results.push(DeviceData {
+                        mapping,
+                        value: None,
+                    });
+                    continue;
                 }
             };
 
@@ -266,19 +268,13 @@ pub async fn read_device_public_only(
             progress_index += 1;
 
             // The massive block is now replaced by this single, elegant line:
-            let value = self.read_single_register(tipo, addr, mapping.tratamento.as_deref()).await?;
+            let value = self
+                .read_single_register(tipo, addr, mapping.tratamento.as_deref())
+                .await?;
 
             results.push(DeviceData { mapping, value });
         }
 
         Ok(results)
     }
-    
-    
-    //     &mut self,
-    // ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
-    //     let map_path = get_map_path(&self.device, &self.firmware)?;
-    //     let map_vec = csv_to_vec(&map_path)?;
-    //     Ok(map_vec)
-    // }
 }

@@ -177,7 +177,7 @@ export function Readings() {
 
       <Separator orientation="horizontal" />
 
-      {(isPending || isFetching) && (
+      {((isPending || isFetching) && isConnected) && (
         <div className="flex gap-4 items-center justify-center mt-10">
           <Database/>
           <span className="flex gap-2 text-center items-center justify-center">{lang == "pt-br" ? "Lendo dados" : "Reading data"} {progress}</span>

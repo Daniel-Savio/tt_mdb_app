@@ -7,6 +7,10 @@ type  GlobalStore = {
   isReading: boolean
   isConnected: boolean
   readingRate: number
+  offlineDevice: string
+  offlineFirmware: string
+  setOfflineDevice: (value: string) => void
+  setOfflineFirmware: (value: string) => void
   setConnecting: (value: boolean) => void
   setReading: (value: boolean) => void
   setConnected: (value: boolean) => void
@@ -20,10 +24,14 @@ export const useGlobal = create<GlobalStore>()(
       isReading: false,
       isConnected: false,
       readingRate: 5000,
+      offlineDevice: "",
+      offlineFirmware: "",
       setConnecting: (value: boolean) => set({ isConnecting: value }),
       setReading: (value: boolean) => set({ isReading: value }),
       setConnected: (value: boolean) => set({ isConnected: value }),
       setReadingRate: (value: number) => set({ readingRate: value }),
+      setOfflineDevice: (value: string) => set({ offlineDevice: value }),
+      setOfflineFirmware: (value: string) => set({ offlineFirmware: value })
 
     }),
     {
