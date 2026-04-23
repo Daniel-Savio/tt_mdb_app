@@ -211,6 +211,61 @@ impl ModbusClient {
         }
     }
 
+    /// Writes a value to a single Modbus register.
+    pub async fn write_single_register(
+        &mut self,
+        tipo_modbus: &str,
+        addr: u16,
+        value: f64,
+        tratamento: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match tipo_modbus {
+            "Holding register" => {
+                let is_bitmask = tratamento.map_or(false, |t| t.starts_with("0x"));
+
+                if is_bitmask {
+                    let tratamento_str = tratamento.unwrap();
+                    let bit_index = Self::get_bit_index(tratamento_str).unwrap();
+                    
+                    // Read-Modify-Write
+                    let current_vec = match self.client.read_holding_registers(addr, 1).await {
+                        Ok(Ok(vec)) => vec,
+                        Ok(Err(e)) => return Err(Box::new(e)),
+                        Err(e) => return Err(Box::new(e)),
+                    };
+                    
+                    let mut register_value = current_vec[0];
+                    
+                    if value > 0.5 {
+                        register_value |= 1 << bit_index;
+                    } else {
+                        register_value &= !(1 << bit_index);
+                    }
+                    
+                    match self.client.write_single_register(addr, register_value).await {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(e)) => Err(Box::new(e)),
+                        Err(e) => Err(Box::new(e)),
+                    }
+                } else {
+                    match self.client.write_single_register(addr, value as u16).await {
+                        Ok(Ok(())) => Ok(()),
+                        Ok(Err(e)) => Err(Box::new(e)),
+                        Err(e) => Err(Box::new(e)),
+                    }
+                }
+            }
+            "Coil" => {
+                match self.client.write_single_coil(addr, value > 0.5).await {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(e)) => Err(Box::new(e)),
+                    Err(e) => Err(Box::new(e)),
+                }
+            }
+            _ => Err("Tipo de registrador não suportado para escrita ou não implementado".into()),
+        }
+    }
+
     /// Recebe uma string hexadecimal 0x e retorna a posição do bit ativo em 1
     pub fn get_bit_index(hex_str: &str) -> Result<u32, &'static str> {
         // 1. Clean the string and remove the prefix

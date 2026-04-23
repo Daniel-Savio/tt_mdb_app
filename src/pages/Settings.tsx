@@ -1,11 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/ui/input-group";
-import { Sheet, Info } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Sheet, Info, ListChecks, Download, Send } from "lucide-react";
 import { useModbusConnection } from "@/store/useModbusConnection";
 import { useLanguage } from "@/store/useLanguage";
 import { useQuery } from '@tanstack/react-query'
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -13,14 +12,26 @@ import { useGlobal } from "@/store/useGlobal";
 import { RawJsonReading } from "./Readings";
 import { CascadeView } from "@/components/CascadeView";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChangesDrawer } from "@/components/ChangesDrawer";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+
+interface ModifiedPoint {
+  original: RawJsonReading;
+  newValue: string;
+  status: 'pending' | 'success' | 'error';
+  error?: string;
+}
 
 export function Settings() {
   const lang = useLanguage().language;
-  const { isReading, isConnected, setConnected, setReading, readingRate, setReadingRate, offlineDevice, offlineFirmware, setOfflineDevice, setOfflineFirmware } = useGlobal();
+  const { isConnected, setConnected, setReading, offlineDevice, setOfflineDevice, setOfflineFirmware, offlineFirmware } = useGlobal();
   const [selectedReading, setSelectedReading] = useState<RawJsonReading | null>(null);
   const [currentValue, setCurrentValue] = useState("");
+  const [modifiedPoints, setModifiedPoints] = useState<Record<string, ModifiedPoint>>({});
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const { connection } = useModbusConnection()
 
   const { data, isLoading } = useQuery({
@@ -43,10 +54,51 @@ export function Settings() {
     }
   })
 
+  const [isReadingValue, setIsReadingValue] = useState(false);
+
   useEffect(() => {
-    if (selectedReading) {
+    const initializeValue = async () => {
+      if (!selectedReading) return;
+
+      // Se já houver uma modificação pendente para este ponto, usa o valor modificado
+      if (modifiedPoints[selectedReading.UUID]) {
+        setCurrentValue(modifiedPoints[selectedReading.UUID].newValue);
+        return;
+      }
+
       const divisor = parseFloat(selectedReading["Divisor"] || "1") || 1;
       const isSelect = !!selectedReading["Conversão pt"];
+
+      // Se estiver conectado, tenta ler o valor real do dispositivo
+      if (isConnected) {
+        setIsReadingValue(true);
+        try {
+          const val = await invoke<number | null>("read_parameter", {
+            tipoModbus: selectedReading["Tipo (Modbus)"],
+            addr: selectedReading["Registrador (Modbus)"],
+            tratamento: selectedReading["Tratamento"]
+          });
+
+          if (val !== null) {
+            let actualValue = "";
+            if (isSelect) {
+              const options = selectedReading["Conversão pt"]?.split("\\") || [];
+              const idx = Math.round(val);
+              actualValue = options[idx]?.trim() || val.toString();
+            } else {
+              actualValue = (val / divisor).toString();
+            }
+            setCurrentValue(actualValue);
+            setIsReadingValue(false);
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to read parameter:", err);
+        }
+        setIsReadingValue(false);
+      }
+
+      // Fallback para valor default (se offline ou falha na leitura)
       let initial = "";
       if (isSelect) {
         const options = selectedReading["Conversão pt"]?.split("\\") || [];
@@ -57,8 +109,10 @@ export function Settings() {
         initial = (rawValue / divisor).toString();
       }
       setCurrentValue(initial);
-    }
-  }, [selectedReading]);
+    };
+
+    initializeValue();
+  }, [selectedReading, isConnected]); // Removido modifiedPoints da dependência para evitar reset indesejado durante edição
 
   useEffect(() => {
     const unlistenStop = listen('reading-stop', () => {
@@ -91,6 +145,20 @@ export function Settings() {
     return currentNum === dividedDefault;
   }, [currentValue, selectedReading]);
 
+  // Função centralizada para salvar automaticamente
+  const autoSaveToDrawer = useCallback((value: string) => {
+    if (!selectedReading) return;
+    
+    setModifiedPoints(prev => ({
+      ...prev,
+      [selectedReading.UUID]: {
+        original: selectedReading,
+        newValue: value,
+        status: 'pending'
+      }
+    }));
+  }, [selectedReading]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(",", ".");
     
@@ -102,21 +170,146 @@ export function Settings() {
       const max = Number(selectedReading?.["Limite superior"] || 0) / divisor;
 
       if (num > max) {
-        setCurrentValue(max.toString());
-        return;
+        val = max.toString();
       }
     }
     setCurrentValue(val);
+    autoSaveToDrawer(val);
   };
 
+  const handleSelectChange = (val: string) => {
+    setCurrentValue(val);
+    autoSaveToDrawer(val);
+  };
+
+  const removeFromDrawer = (uuid: string) => {
+    setModifiedPoints(prev => {
+      const newPoints = { ...prev };
+      delete newPoints[uuid];
+      return newPoints;
+    });
+  };
+
+  const exportAllToJson = async () => {
+    if (!data) return;
+
+    const mergedData = data.map(point => {
+      if (modifiedPoints[point.UUID]) {
+        return {
+          ...point,
+          "Valor default": modifiedPoints[point.UUID].newValue
+        };
+      }
+      return point;
+    });
+
+    try {
+      const filePath = await save({
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        defaultPath: `parameters_${connection.device || offlineDevice}.json`
+      });
+
+      if (filePath) {
+        await writeTextFile(filePath, JSON.stringify(mergedData, null, 2));
+        toast.success(lang === "pt-br" ? "Arquivo exportado com sucesso" : "File exported successfully");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(lang === "pt-br" ? "Erro ao exportar arquivo" : "Error exporting file");
+    }
+  };
+
+  const applyChanges = async () => {
+    setIsApplying(true);
+    const points = Object.values(modifiedPoints);
+    
+    for (const point of points) {
+      if (point.status === 'success') continue;
+
+      try {
+        const divisor = Number(point.original["Divisor"] || 1);
+        let finalValue: number;
+
+        if (point.original["Conversão pt"]) {
+            const options = point.original["Conversão pt"].split("\\").map(o => o.trim());
+            const idx = options.indexOf(point.newValue.trim());
+            finalValue = idx !== -1 ? idx : parseFloat(point.newValue);
+        } else {
+            finalValue = parseFloat(point.newValue) * divisor;
+        }
+
+        await invoke("write_parameter", {
+          tipoModbus: point.original["Tipo (Modbus)"],
+          addr: point.original["Registrador (Modbus)"],
+          value: finalValue,
+          tratamento: point.original["Tratamento"]
+        });
+
+        setModifiedPoints(prev => ({
+          ...prev,
+          [point.original.UUID]: { ...point, status: 'success' }
+        }));
+      } catch (err) {
+        setModifiedPoints(prev => ({
+          ...prev,
+          [point.original.UUID]: { ...point, status: 'error', error: String(err) }
+        }));
+      }
+    }
+    setIsApplying(false);
+  };
+
+  const hasChanges = Object.keys(modifiedPoints).length > 0;
+
   return (
-    <section className="flex flex-col w-full h-full p-4">
+    <section className="flex flex-col w-full h-full p-4 relative overflow-hidden">
       <header className="flex flex-row items-center justify-between w-full mb-4">
-        {isConnected ? (
-          <h1 className="text-xl font-bold">{lang === "pt-br" ? "Parâmetros:" : "Settings:"} {connection.device} - {connection.firmware}</h1>
-        ) : (
-          <h1 className="text-xl font-bold">{lang === "pt-br" ? "Parâmetros:" : "Settings:"} {offlineDevice} - {connection.firmware}</h1>
-        )}
+        <div className="flex items-center gap-4">
+            {isConnected ? (
+            <h1 className="text-xl font-bold">{lang === "pt-br" ? "Parâmetros:" : "Settings:"} {connection.device} - {connection.firmware}</h1>
+            ) : (
+            <h1 className="text-xl font-bold">{lang === "pt-br" ? "Parâmetros:" : "Settings:"} {offlineDevice} - {connection.firmware}</h1>
+            )}
+            
+            <div className="flex items-center gap-2 border-l pl-4 ml-2">
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 relative"
+                    onClick={() => setIsDrawerOpen(true)}
+                >
+                    <ListChecks className="h-4 w-4" />
+                    {lang === "pt-br" ? "Alterações" : "Changes"}
+                    {hasChanges && (
+                        <span className="absolute -top-2 -right-2 bg-primary text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-background font-bold">
+                            {Object.keys(modifiedPoints).length}
+                        </span>
+                    )}
+                </Button>
+
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={exportAllToJson}
+                    disabled={!data}
+                >
+                    <Download className="h-4 w-4" />
+                    {lang === "pt-br" ? "Exportar" : "Export"}
+                </Button>
+
+                <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="gap-2 shadow-md"
+                    onClick={applyChanges}
+                    disabled={!hasChanges || isApplying}
+                >
+                    <Send className={`h-4 w-4 ${isApplying ? "animate-pulse" : ""}`} />
+                    {isApplying ? (lang === "pt-br" ? "Aplicando..." : "Applying...") : (lang === "pt-br" ? "Aplicar" : "Apply")}
+                </Button>
+            </div>
+        </div>
         <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${isConnected ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
           {isConnected ? "on-line" : "off-line"}
         </span>
@@ -125,7 +318,7 @@ export function Settings() {
       <div className="flex flex-row gap-6 h-[calc(100%-60px)]">
         <div className="flex-1 flex flex-col min-w-0">
           <h2 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
-            {lang === "pt-br" ? "Estrutura de Parâmetros" : "Settings Structure"}
+            {lang === "pt-br" ? "Estrutura de Pastas" : "Folder Structure"}
           </h2>
           {isLoading ? (
             <div className="flex items-center justify-center flex-1 border rounded-md">
@@ -183,47 +376,66 @@ export function Settings() {
                 </div>
               </div>
               <Separator />
-              <div className="flex flex-col gap-2 justify-center text-center items-center mt-5">
-                <h1 className="text-lg bold">{lang === "pt-br" ? "Valor" : "Value"} / {selectedReading ? (
-              <span className="text-xs text-muted-foreground">{Number(selectedReading["Limite inferior"])/Number(selectedReading["Divisor"])} - {Number(selectedReading["Limite superior"])/Number(selectedReading["Divisor"])}</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">{lang === "pt-br" ? "Nenhum ponto selecionado" : "No point selected"}</span>
-             )
-          }</h1>
-                {selectedReading["Conversão pt"]?(
-                  <div className="flex flex-col gap-1">
-                    <Select onValueChange={(val)=> setCurrentValue(val)} value={currentValue}>
-                      <SelectTrigger className={` w-60 flex gap-4 text-sm cursor-pointer transition-colors ${isDefault ? "border-blue-400 text-blue-400" : ""}`}>
-                        <SelectValue className="text-sm"></SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="text-xs w-fit">
-                        <SelectGroup>
-                          {selectedReading["Conversão pt"]?.split("\\").map((option) => (
-                            <SelectItem key={option} value={option.trim()}>{option.trim()}</SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+              <div className="flex flex-col gap-4 justify-center text-center items-center mt-5">
+                <h1 className="text-lg font-bold">
+                    {lang === "pt-br" ? "Valor" : "Value"} / {selectedReading["Limite inferior"] ? (
+                        <span className="text-xs text-muted-foreground">
+                            {Number(selectedReading["Limite inferior"])/Number(selectedReading["Divisor"] || 1)} - {Number(selectedReading["Limite superior"])/Number(selectedReading["Divisor"] || 1)}
+                        </span>
+                    ) : (
+                        <span className="text-xs text-muted-foreground">{lang === "pt-br" ? "Nenhum limite" : "No limits"}</span>
+                    )}
+                </h1>
+
+                {isReadingValue ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+                    <Sheet className="h-4 w-4 animate-spin" />
+                    {lang === "pt-br" ? "Lendo registrador..." : "Reading register..."}
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    <InputGroup>
-                      <InputGroupInput 
-                        value={currentValue} 
-                        onChange={handleInputChange}
-                        className={` w-60 m-auto transition-colors ${isDefault ? "border-blue-400 text-blue-400 focus-visible:ring-blue-400" : ""}`}
-                      />
-                      <InputGroupAddon align={"inline-end"} className="text-xs text-muted-foreground">
-                        {selectedReading["Unidade pt"] ? selectedReading["Unidade pt"] : lang === "pt-br" ? "sem unidade" : "no unit"}
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </div>
+                  <>
+                    {selectedReading["Conversão pt"]?(
+                      <div className="flex flex-col gap-1">
+                        <Select onValueChange={handleSelectChange} value={currentValue}>
+                          <SelectTrigger className={` w-60 flex gap-4 text-sm cursor-pointer transition-colors ${isDefault ? "border-blue-400 text-blue-400" : ""}`}>
+                            <SelectValue className="text-sm"></SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="text-xs w-fit">
+                            <SelectGroup>
+                              {selectedReading["Conversão pt"]?.split("\\").map((option) => (
+                                <SelectItem key={option} value={option.trim()}>{option.trim()}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1 w-60">
+                        <InputGroup>
+                          <InputGroupInput 
+                            value={currentValue} 
+                            onChange={handleInputChange}
+                            className={`transition-colors ${isDefault ? "border-blue-400 text-blue-400 focus-visible:ring-blue-400" : ""}`}
+                          />
+                          <InputGroupAddon align={"inline-end"} className="text-xs text-muted-foreground">
+                            {selectedReading["Unidade pt"] ? selectedReading["Unidade pt"] : lang === "pt-br" ? "sem unidade" : "no unit"}
+                          </InputGroupAddon>
+                        </InputGroup>
+                      </div>
+                    )}
+                  </>
                 )}
                 
                 {isDefault && (
                   <span className="text-sm font-medium text-blue-400 animate-in fade-in slide-in-from-top-1">
                     {lang === "pt-br" ? "* Valor igual ao padrão de fábrica" : "* Value matches factory default"}
                   </span>
+                )}
+
+                {modifiedPoints[selectedReading.UUID] && (
+                  <div className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mt-2">
+                    {lang === "pt-br" ? "Alteração Pendente" : "Pending Change"}
+                  </div>
                 )}
               </div>
 
@@ -235,6 +447,16 @@ export function Settings() {
           )}
         </div>
       </div>
+
+      <ChangesDrawer 
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        modifiedPoints={modifiedPoints}
+        onRemove={removeFromDrawer}
+        onExport={exportAllToJson}
+        onApply={applyChanges}
+        isApplying={isApplying}
+      />
     </section>
   );
 }

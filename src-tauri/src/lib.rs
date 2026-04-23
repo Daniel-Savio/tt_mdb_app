@@ -177,6 +177,51 @@ fn stop_reading(app: AppHandle) {
     app.emit("reading-stop", true).unwrap();
 }
 
+#[tauri::command]
+async fn write_parameter(
+    state: State<'_, AppState>,
+    tipo_modbus: String,
+    addr: u16,
+    value: f64,
+    tratamento: Option<String>,
+) -> Result<(), String> {
+    let client_opt = state.client.lock().unwrap().take();
+
+    if let Some(mut client) = client_opt {
+        let result = client
+            .write_single_register(&tipo_modbus, addr, value, tratamento.as_deref())
+            .await;
+
+        *state.client.lock().unwrap() = Some(client);
+
+        result.map_err(|e| format!("Erro ao escrever parâmetro: {}", e))
+    } else {
+        Err("Cliente Modbus não conectado".to_string())
+    }
+}
+
+#[tauri::command]
+async fn read_parameter(
+    state: State<'_, AppState>,
+    tipo_modbus: String,
+    addr: u16,
+    tratamento: Option<String>,
+) -> Result<Option<f64>, String> {
+    let client_opt = state.client.lock().unwrap().take();
+
+    if let Some(mut client) = client_opt {
+        let result = client
+            .read_single_register(&tipo_modbus, addr, tratamento.as_deref())
+            .await;
+
+        *state.client.lock().unwrap() = Some(client);
+
+        result.map_err(|e| format!("Erro ao ler parâmetro: {}", e))
+    } else {
+        Err("Cliente Modbus não conectado".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -184,7 +229,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { client: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, public_parameters, stop_reading])
+        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, public_parameters, stop_reading, write_parameter, read_parameter])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
