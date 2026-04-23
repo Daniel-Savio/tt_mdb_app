@@ -98,7 +98,7 @@ export function Connect() {
           {/*! IED !*/}
           <DropdownMenu>
 
-            <DropdownMenuTrigger asChild className="w-48 bg-card p-4 text-lg hover:border-primary">
+            <DropdownMenuTrigger disabled={isConnecting || isReading || isConnected} asChild className="w-48 bg-card p-4 text-lg hover:border-primary">
               <InputGroupButton variant="ghost" className="cursor-pointer">
                 {connection.device ? (<p className="text-primary font-bold flex gap-2 items-center"><Check />{connection.device}</p>) : (lang === "pt-br" ? <p>Selecione o IED...</p> : <p>Select IED...</p>)}
                 <ChevronDown className="ml-2" />
@@ -116,8 +116,8 @@ export function Connect() {
 
           {/*! Firmware !*/}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild className="w-48 bg-card text-lg p-4 hover:border-primary">
-              <InputGroupButton disabled={!connection.device}  variant="ghost" className="cursor-pointer">
+            <DropdownMenuTrigger disabled={isConnecting || isReading || isConnected} asChild className="w-48 bg-card text-lg p-4 hover:border-primary">
+              <InputGroupButton variant="ghost" className="cursor-pointer">
                 {connection.firmware ? (<p className="text-primary flex gap-2 items-center"><Check />{connection.firmware}</p>) : (lang === "pt-br" ? <p>Firmware...</p> : <p>Firmware...</p>)}
                 <ChevronDown className="ml-2" />
               </InputGroupButton>
