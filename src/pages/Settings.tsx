@@ -45,15 +45,16 @@ export function Settings() {
 
   useEffect(() => {
     if (selectedReading) {
+      const divisor = parseFloat(selectedReading["Divisor"] || "1") || 1;
       const isSelect = !!selectedReading["Conversão pt"];
       let initial = "";
       if (isSelect) {
         const options = selectedReading["Conversão pt"]?.split("\\") || [];
-        // Tenta pegar pelo índice (comum em CSVs de Modbus) ou o valor literal
         const idx = parseInt(selectedReading["Valor default"] || "0");
         initial = options[idx]?.trim() || selectedReading["Valor default"] || "";
       } else {
-        initial = selectedReading["Valor default"] || "";
+        const rawValue = parseFloat(selectedReading["Valor default"] || "0");
+        initial = (rawValue / divisor).toString();
       }
       setCurrentValue(initial);
     }
@@ -73,15 +74,40 @@ export function Settings() {
 
   const isDefault = useMemo(() => {
     if (!selectedReading) return false;
+    const divisor = parseFloat(selectedReading["Divisor"] || "1") || 1;
     const isSelect = !!selectedReading["Conversão pt"];
+    
     if (isSelect) {
       const options = selectedReading["Conversão pt"]?.split("\\") || [];
       const idx = parseInt(selectedReading["Valor default"] || "0");
       const defStr = options[idx]?.trim() || selectedReading["Valor default"] || "";
       return currentValue === defStr;
     }
-    return currentValue === selectedReading["Valor default"];
+    
+    const currentNum = parseFloat(currentValue || "0");
+    const rawDefault = parseFloat(selectedReading["Valor default"] || "0");
+    const dividedDefault = rawDefault / divisor;
+    
+    return currentNum === dividedDefault;
   }, [currentValue, selectedReading]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(",", ".");
+    
+    if (val !== "" && val !== "-" && !/^-?\d*\.?\d*$/.test(val)) return;
+
+    if (val !== "" && val !== "-") {
+      const num = parseFloat(val);
+      const divisor = Number(selectedReading?.["Divisor"] || 1);
+      const max = Number(selectedReading?.["Limite superior"] || 0) / divisor;
+
+      if (num > max) {
+        setCurrentValue(max.toString());
+        return;
+      }
+    }
+    setCurrentValue(val);
+  };
 
   return (
     <section className="flex flex-col w-full h-full p-4">
@@ -183,9 +209,8 @@ export function Settings() {
                   <div className="flex flex-col gap-1">
                     <InputGroup>
                       <InputGroupInput 
-                        defaultValue={Number(currentValue) / Number(selectedReading["Divisor"]) || ""}
                         value={currentValue} 
-                        onChange={(e) => setCurrentValue(e.target.value)}
+                        onChange={handleInputChange}
                         className={` w-60 m-auto transition-colors ${isDefault ? "border-blue-400 text-blue-400 focus-visible:ring-blue-400" : ""}`}
                       />
                       <InputGroupAddon align={"inline-end"} className="text-xs text-muted-foreground">
