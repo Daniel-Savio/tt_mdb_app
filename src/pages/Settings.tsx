@@ -20,6 +20,7 @@ export function Settings() {
   const lang = useLanguage().language;
   const { isReading, isConnected, setConnected, setReading, readingRate, setReadingRate, offlineDevice, offlineFirmware, setOfflineDevice, setOfflineFirmware } = useGlobal();
   const [selectedReading, setSelectedReading] = useState<RawJsonReading | null>(null);
+  const [currentValue, setCurrentValue] = useState("");
   const { connection } = useModbusConnection()
 
   const { data, isLoading } = useQuery({
@@ -43,6 +44,22 @@ export function Settings() {
   })
 
   useEffect(() => {
+    if (selectedReading) {
+      const isSelect = !!selectedReading["Conversão pt"];
+      let initial = "";
+      if (isSelect) {
+        const options = selectedReading["Conversão pt"]?.split("\\") || [];
+        // Tenta pegar pelo índice (comum em CSVs de Modbus) ou o valor literal
+        const idx = parseInt(selectedReading["Valor default"] || "0");
+        initial = options[idx]?.trim() || selectedReading["Valor default"] || "";
+      } else {
+        initial = selectedReading["Valor default"] || "";
+      }
+      setCurrentValue(initial);
+    }
+  }, [selectedReading]);
+
+  useEffect(() => {
     const unlistenStop = listen('reading-stop', () => {
       setReading(false);
       setConnected(false);
@@ -53,6 +70,18 @@ export function Settings() {
       unlistenStop.then((f) => f());
     };
   }, [data])
+
+  const isDefault = useMemo(() => {
+    if (!selectedReading) return false;
+    const isSelect = !!selectedReading["Conversão pt"];
+    if (isSelect) {
+      const options = selectedReading["Conversão pt"]?.split("\\") || [];
+      const idx = parseInt(selectedReading["Valor default"] || "0");
+      const defStr = options[idx]?.trim() || selectedReading["Valor default"] || "";
+      return currentValue === defStr;
+    }
+    return currentValue === selectedReading["Valor default"];
+  }, [currentValue, selectedReading]);
 
   return (
     <section className="flex flex-col w-full h-full p-4">
@@ -93,8 +122,8 @@ export function Settings() {
           </h2>
 
           {selectedReading ? (
-            <div className="space-y-4">
-              <section className="grid grid-cols-2 gap-4">
+            <div className="space-y-4" key={selectedReading.UUID}>
+              <section className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground">{lang === "pt-br" ? "Descrição" : "Description"}</label>
                   <p className="text-sm font-medium">{lang === "pt-br" ? selectedReading["Descrição pt"] : selectedReading["Descrição en"]}</p>
@@ -102,6 +131,10 @@ export function Settings() {
                 <div>
                   <label className="text-xs text-muted-foreground">{lang === "pt-br" ? "Caminho Display" : "Display Path"}</label>
                   <p className="text-sm italic text-primary">{selectedReading["Display pt"]}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">{lang === "pt-br" ? "Valor Padrão" : "Default Value"}</label>
+                  {!selectedReading["Conversão pt"] ? (<p className="text-sm italic text-blue-400">{Number(selectedReading["Valor default"]) / Number(selectedReading["Divisor"] || 1) || ""}</p>) : (<p className="text-sm italic text-blue-400">{selectedReading["Valor default"]}</p>)}
                 </div>
               </section>
               <Separator />
@@ -124,26 +157,50 @@ export function Settings() {
                 </div>
               </div>
               <Separator />
-              {selectedReading["Conversão pt"]?(
-                <>
-                  <Select onValueChange={()=> {}} defaultValue={selectedReading["Conversão pt"]?.split("\\")[selectedReading["Valor default"]?.split("\\").indexOf(selectedReading["Valor default"]) || 0] || ""}>
-                    <SelectTrigger className="w-fit flex gap-4 text-sm cursor-pointer">
-                      <SelectValue className="text-sm"></SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="text-xs w-fit">
-                      <SelectGroup>
-                        {selectedReading["Conversão pt"]?.split("\\").map((option) => (
-                          <SelectItem key={option} value={option.trim()}>{option.trim()}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </>
-              ) : (
-                <>
-                 <Input defaultValue={selectedReading["Valor default"] || ""}></Input>
-                </>
-              )}
+              <div className="flex flex-col gap-2 justify-center text-center items-center mt-5">
+                <h1 className="text-lg bold">{lang === "pt-br" ? "Valor" : "Value"} / {selectedReading ? (
+              <span className="text-xs text-muted-foreground">{Number(selectedReading["Limite inferior"])/Number(selectedReading["Divisor"])} - {Number(selectedReading["Limite superior"])/Number(selectedReading["Divisor"])}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">{lang === "pt-br" ? "Nenhum ponto selecionado" : "No point selected"}</span>
+             )
+          }</h1>
+                {selectedReading["Conversão pt"]?(
+                  <div className="flex flex-col gap-1">
+                    <Select onValueChange={(val)=> setCurrentValue(val)} value={currentValue}>
+                      <SelectTrigger className={` w-60 flex gap-4 text-sm cursor-pointer transition-colors ${isDefault ? "border-blue-400 text-blue-400" : ""}`}>
+                        <SelectValue className="text-sm"></SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs w-fit">
+                        <SelectGroup>
+                          {selectedReading["Conversão pt"]?.split("\\").map((option) => (
+                            <SelectItem key={option} value={option.trim()}>{option.trim()}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <InputGroup>
+                      <InputGroupInput 
+                        defaultValue={Number(currentValue) / Number(selectedReading["Divisor"]) || ""}
+                        value={currentValue} 
+                        onChange={(e) => setCurrentValue(e.target.value)}
+                        className={` w-60 m-auto transition-colors ${isDefault ? "border-blue-400 text-blue-400 focus-visible:ring-blue-400" : ""}`}
+                      />
+                      <InputGroupAddon align={"inline-end"} className="text-xs text-muted-foreground">
+                        {selectedReading["Unidade pt"] ? selectedReading["Unidade pt"] : lang === "pt-br" ? "sem unidade" : "no unit"}
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </div>
+                )}
+                
+                {isDefault && (
+                  <span className="text-sm font-medium text-blue-400 animate-in fade-in slide-in-from-top-1">
+                    {lang === "pt-br" ? "* Valor igual ao padrão de fábrica" : "* Value matches factory default"}
+                  </span>
+                )}
+              </div>
 
             </div>
           ) : (
