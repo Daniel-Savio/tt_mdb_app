@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tt_mdb_app",
-  "version": "0.1.0",
-  "identifier": "com.tt_mdb_app",
+  "productName": "tt-device-app",
+  "version": "0.1.4",
+  "identifier": "com.tt-mdb-app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -34,6 +34,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "resources": [
+      "src/maps_folder/"
     ]
   }
 }

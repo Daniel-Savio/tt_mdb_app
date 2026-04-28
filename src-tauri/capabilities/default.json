@@ -12,6 +12,11 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [{ "path": "**" }]
     },
+    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
     "core:window:allow-start-dragging",
     "core:window:default",
     "core:window:allow-toggle-maximize",

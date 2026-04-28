@@ -2,12 +2,11 @@ pub mod maps;
 pub mod modbus;
 use crate::modbus::ModbusClient;
 use maps::build_custom_tree;
-use maps::MAPS_FOLDER;
 use modbus::ModbusConnection;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 
 
@@ -40,10 +39,10 @@ struct AppState {
 }
 
 #[tauri::command]
-fn get_maps() -> GetMapsResponse {
-    let path = Path::new(MAPS_FOLDER);
+fn get_maps(app: AppHandle) -> GetMapsResponse {
+    let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
 
-    match build_custom_tree(path, 0) {
+    match build_custom_tree(&maps_path, 0) {
         Ok(Some(tree)) => {
             let json_output = serde_json::to_string_pretty(&tree).unwrap();
 
@@ -145,8 +144,9 @@ async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<Str
 }
 
 #[tauri::command]
-fn public_parameters(device: String, firmware: String) -> Result<String, String>{
-    let result = maps::get_public_parameters(&device, &firmware);
+fn public_parameters(app: AppHandle, device: String, firmware: String) -> Result<String, String>{
+    let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+    let result = maps::get_public_parameters(&maps_path, &device, &firmware);
     match result {
         Ok(data) => {
             let serialized = serde_json::to_string(&data)

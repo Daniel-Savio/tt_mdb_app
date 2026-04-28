@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupInput, InputGroupAddon } from "@/components/ui/input-group";
-import { Sheet, Info, ListChecks, Download, Send } from "lucide-react";
+import { Sheet, Info, ListChecks, Download, Send, Upload } from "lucide-react";
 import { useModbusConnection } from "@/store/useModbusConnection";
 import { useLanguage } from "@/store/useLanguage";
 import { useQuery } from '@tanstack/react-query'
@@ -14,8 +14,8 @@ import { CascadeView } from "@/components/CascadeView";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChangesDrawer } from "@/components/ChangesDrawer";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 interface ModifiedPoint {
   original: RawJsonReading;
@@ -193,29 +193,130 @@ export function Settings() {
   const exportAllToJson = async () => {
     if (!data) return;
 
-    const mergedData = data.map(point => {
+    // Criamos uma lista simplificada contendo todos os pontos, 
+    // garantindo que todos os valores (modificados ou não) estejam no formato "humano"
+    const exportData = data.map(point => {
+      let value: string;
       if (modifiedPoints[point.UUID]) {
-        return {
-          ...point,
-          "Valor default": modifiedPoints[point.UUID].newValue
-        };
+        value = modifiedPoints[point.UUID].newValue;
+      } else {
+        const divisor = parseFloat(point["Divisor"] || "1") || 1;
+        const isSelect = !!point["Conversão pt"];
+        if (isSelect) {
+          const options = point["Conversão pt"]?.split("\\") || [];
+          const idx = parseInt(point["Valor default"] || "0");
+          value = options[idx]?.trim() || point["Valor default"] || "";
+        } else {
+          const rawValue = parseFloat(point["Valor default"] || "0");
+          value = (rawValue / divisor).toString();
+        }
       }
-      return point;
+
+      return {
+        UUID: point.UUID,
+        "Valor": value,
+        "Descrição": lang === "pt-br" ? point["Descrição pt"] : point["Descrição en"]
+      };
     });
 
     try {
       const filePath = await save({
         filters: [{ name: 'JSON', extensions: ['json'] }],
-        defaultPath: `parameters_${connection.device || offlineDevice}.json`
+        defaultPath: `config_${connection.device || offlineDevice || "export"}.json`
       });
 
       if (filePath) {
-        await writeTextFile(filePath, JSON.stringify(mergedData, null, 2));
-        toast.success(lang === "pt-br" ? "Arquivo exportado com sucesso" : "File exported successfully");
+        await writeTextFile(filePath, JSON.stringify(exportData, null, 2));
+        toast.success(lang === "pt-br" ? "Configuração exportada com sucesso" : "Configuration exported successfully");
       }
     } catch (err) {
       console.error(err);
       toast.error(lang === "pt-br" ? "Erro ao exportar arquivo" : "Error exporting file");
+    }
+  };
+
+  const importFromJson = async () => {
+    try {
+      console.log("Iniciando importação...");
+      const filePath = await open({
+        multiple: false,
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+      });
+
+      if (!filePath) {
+        console.log("Nenhum arquivo selecionado");
+        return;
+      }
+
+      console.log("Lendo arquivo:", filePath);
+      // No Tauri v2, se filePath for um objeto, pegamos a string. Se for string, usamos direto.
+      const path = typeof filePath === 'object' ? (filePath as any).path : filePath;
+      
+      const content = await readTextFile(path);
+      const importedData = JSON.parse(content);
+
+      if (!Array.isArray(importedData)) {
+        toast.error(lang === "pt-br" ? "Formato de arquivo inválido: Esperado um Array" : "Invalid file format: Array expected");
+        return;
+      }
+
+      const newModifiedPoints = { ...modifiedPoints };
+      let count = 0;
+
+      importedData.forEach((importedPoint: any) => {
+        if (!importedPoint || typeof importedPoint !== 'object') return;
+
+        const currentPoint = data?.find(p => p.UUID === importedPoint.UUID);
+        // Suporta tanto a chave nova "Valor" quanto a antiga "Valor default" para compatibilidade
+        const importedValue = importedPoint["Valor"] ?? importedPoint["Valor default"] ?? importedPoint["newValue"];
+        
+        // Verifica se o ponto existe no firmware atual e se o valor não é undefined/null
+        if (currentPoint && importedValue !== undefined && importedValue !== null) {
+          const divisor = parseFloat(currentPoint["Divisor"] || "1") || 1;
+          const isSelect = !!currentPoint["Conversão pt"];
+          let factoryDefault: string;
+
+          // Calcula o valor padrão de fábrica no formato humano para comparação
+          if (isSelect) {
+            const options = currentPoint["Conversão pt"]?.split("\\") || [];
+            const idx = parseInt(currentPoint["Valor default"] || "0");
+            factoryDefault = options[idx]?.trim() || currentPoint["Valor default"] || "";
+          } else {
+            factoryDefault = (parseFloat(currentPoint["Valor default"] || "0") / divisor).toString();
+          }
+
+          // Converte para string com segurança antes de comparar
+          const valStr = String(importedValue);
+
+          // Só importa se o valor for diferente do padrão de fábrica
+          if (valStr !== factoryDefault) {
+            newModifiedPoints[currentPoint.UUID] = {
+              original: currentPoint,
+              newValue: valStr,
+              status: 'pending'
+            };
+            count++;
+          }
+        }
+      });
+
+      setModifiedPoints(newModifiedPoints);
+      
+      if (count > 0) {
+        toast.success(lang === "pt-br" 
+          ? `${count} alterações carregadas do arquivo` 
+          : `${count} changes loaded from file`);
+        setIsDrawerOpen(true);
+      } else {
+        toast.info(lang === "pt-br" 
+          ? "Nenhuma mudança necessária (valores já são padrão ou não compatíveis)" 
+          : "No changes needed (values already default or incompatible)");
+      }
+    } catch (err) {
+      console.error("Erro detalhado na importação:", err);
+      toast.error(lang === "pt-br" 
+        ? `Erro ao importar: ${err instanceof Error ? err.message : 'Verifique as permissões'}` 
+        : `Import error: ${err instanceof Error ? err.message : 'Check permissions'}`);
     }
   };
 
@@ -296,6 +397,17 @@ export function Settings() {
                 >
                     <Download className="h-4 w-4" />
                     {lang === "pt-br" ? "Exportar" : "Export"}
+                </Button>
+
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={importFromJson}
+                    disabled={!data}
+                >
+                    <Upload className="h-4 w-4" />
+                    {lang === "pt-br" ? "Importar" : "Import"}
                 </Button>
 
                 <Button 
@@ -454,6 +566,7 @@ export function Settings() {
         modifiedPoints={modifiedPoints}
         onRemove={removeFromDrawer}
         onExport={exportAllToJson}
+        onImport={importFromJson}
         onApply={applyChanges}
         isApplying={isApplying}
       />

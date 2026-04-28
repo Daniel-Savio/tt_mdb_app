@@ -31,7 +31,7 @@ interface SerialFormData {
 }
 
 export function SerialConnectionForm() {
-    const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
+    const { isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
     const lang = useLanguage((state) => state.language);
     const { connection, setConnection } = useModbusConnection();
     const [availablePorts, setAvailablePorts] = useState<string[]>([]);
@@ -59,7 +59,7 @@ export function SerialConnectionForm() {
         register,
         handleSubmit,
         control,
-        formState: { errors },
+        formState: { },
     } = useForm<SerialFormData>({
         defaultValues: {
             serialPort: connection.serialPort,

@@ -1,15 +1,13 @@
-import React from "react";
 import { 
-  Sheet, 
   Settings2, 
   Trash2, 
   Download, 
   Send,
+  Upload,
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { RawJsonReading } from "@/pages/Readings";
 
 interface ModifiedPoint {
@@ -25,6 +23,7 @@ interface ChangesDrawerProps {
   modifiedPoints: Record<string, ModifiedPoint>;
   onRemove: (uuid: string) => void;
   onExport: () => void;
+  onImport: () => void;
   onApply: () => void;
   isApplying: boolean;
 }
@@ -35,6 +34,7 @@ export function ChangesDrawer({
   modifiedPoints, 
   onRemove, 
   onExport, 
+  onImport,
   onApply,
   isApplying 
 }: ChangesDrawerProps) {
@@ -107,17 +107,28 @@ export function ChangesDrawer({
       </ScrollArea>
 
       <footer className="p-4 border-t bg-muted/50 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Button 
+            variant="outline" 
+            className="w-full justify-start gap-2" 
+            onClick={onExport}
+            disabled={isApplying}
+          >
+            <Download className="h-4 w-4" />
+            Exportar
+          </Button>
+          <Button 
+            variant="outline" 
+            className="w-full justify-start gap-2" 
+            onClick={onImport}
+            disabled={isApplying}
+          >
+            <Upload className="h-4 w-4" />
+            Importar
+          </Button>
+        </div>
         <Button 
-          variant="outline" 
-          className="w-full justify-start gap-2" 
-          onClick={onExport}
-          disabled={isApplying}
-        >
-          <Download className="h-4 w-4" />
-          Exportar JSON Completo
-        </Button>
-        <Button 
-          className="w-full justify-start gap-2"
+          className="w-full justify-start gap-2 font-bold"
           disabled={!hasChanges || isApplying}
           onClick={onApply}
         >

@@ -40,7 +40,7 @@ interface DataTableProps<TData, TValue> {
 }
 
 // Memoized Row component to prevent re-rendering the whole table when a single value changes
-const MemoizedTableRow = memo(({ row, visibility }: { row: Row<any>, visibility: VisibilityState }) => (
+const MemoizedTableRow = memo(({ row }: { row: Row<any>, visibility: VisibilityState }) => (
   <TableRow data-state={row.getIsSelected() && "selected"}>
     {row.getVisibleCells().map((cell) => (
       <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>

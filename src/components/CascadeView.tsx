@@ -18,10 +18,18 @@ export function CascadeView({ data, onSelect }: CascadeViewProps) {
   const buildTree = (readings: RawJsonReading[]): TreeItem[] => {
     const root: TreeItem[] = [];
 
-
     readings.forEach((reading) => {
-      const pathStr = reading["Display pt"] || "";
-      if (!pathStr) return;
+      const pathStr = reading["Display pt"]?.trim() || "";
+      
+      // Se o atributo estiver vazio, adiciona como uma lista "normal" na raiz
+      if (!pathStr) {
+        root.push({
+          name: reading["Descrição pt"] || reading.UUID,
+          children: [],
+          data: reading
+        });
+        return;
+      }
 
       const parts = pathStr.split("\\");
       let currentLevel = root;
@@ -53,9 +61,15 @@ export function CascadeView({ data, onSelect }: CascadeViewProps) {
   return (
     <ScrollArea className="h-[450px] w-full border rounded-md p-4">
       <div className="space-y-1">
-        {treeData.map((node) => (
-          <TreeNode key={node.name} node={node} onSelect={onSelect} depth={0} />
-        ))}
+        {treeData.length > 0 ? (
+          treeData.map((node, index) => (
+            <TreeNode key={`${node.name}-${index}`} node={node} onSelect={onSelect} depth={0} />
+          ))
+        ) : (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Nenhum item encontrado
+          </div>
+        )}
       </div>
        <ScrollBar orientation="horizontal" />
     </ScrollArea>
@@ -85,6 +99,9 @@ function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
       setIsOpen(!isOpen);
     }
   };
+
+  // Verifica se o nome já é a descrição para não repetir na interface
+  const showExtraInfo = hasData && node.data?.["Descrição pt"] && node.name !== node.data["Descrição pt"];
 
   return (
     <div className="select-none">
@@ -117,15 +134,20 @@ function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
           )}
         </span>
         <span className={`text-sm truncate ${hasData ? "font-medium" : "text-muted-foreground font-normal"}`}>
-          {node.name} {hasData && <span className="ml-1 text-xs text-muted-foreground">({node.data?.["Descrição pt"]?.slice(13)})</span>}
+          {node.name} 
+          {showExtraInfo && (
+            <span className="ml-1 text-xs text-muted-foreground italic">
+              ({node.data?.["Descrição pt"]?.slice(13)})
+            </span>
+          )}
         </span>
       </div>
 
       {isOpen && hasChildren && (
         <div className="mt-0.5">
-          {node.children.map((child) => (
+          {node.children.map((child, index) => (
             <TreeNode
-              key={child.name}
+              key={`${child.name}-${index}`}
               node={child}
               onSelect={onSelect}
               depth={depth + 1}

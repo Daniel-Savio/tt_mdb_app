@@ -20,7 +20,7 @@ interface ModbusFormData {
 }
 
 export function TCPConnectionForm() {
-    const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
+    const {isConnecting, setConnected, isConnected, setReading, isReading } = useGlobal();
     const lang = useLanguage((state) => state.language);
     const { connection, setConnection } = useModbusConnection();
 

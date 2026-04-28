@@ -8,8 +8,6 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub const MAPS_FOLDER: &str = "src/maps_folder/";
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CsvMapping {
     #[serde(rename = "UUID")]
@@ -185,11 +183,11 @@ pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Option<Value>>
 }
 
 ///Recives a deviec name and firmware number and returns its folder path
-pub fn get_map_path(device: &str, firmware: &str) -> Result<PathBuf, String> {
+pub fn get_map_path(maps_path: &Path, device: &str, firmware: &str) -> Result<PathBuf, String> {
     let device_folder = device.to_lowercase().replace(" ", "_");
     let firmware_folder = firmware.to_lowercase().replace(".", "_");
 
-    let path = Path::new(MAPS_FOLDER)
+    let path = maps_path
         .join(&device_folder)
         .join(&firmware_folder);
     if path.is_dir() {
@@ -233,10 +231,11 @@ pub fn csv_to_vec(
 
 /// Recebe o nome e o firmware e retorna todos os parametros públicos com o valor default do mapa do equipamento
 pub fn get_public_parameters(
+    maps_path: &Path,
     device: &str,
     firmware: &str,
 ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
-    let map_path = get_map_path(&device, &firmware)?;
+    let map_path = get_map_path(maps_path, &device, &firmware)?;
     let map_vec = csv_to_vec(&map_path)?;
 
     let public_parameters_mappings: Vec<_> = map_vec

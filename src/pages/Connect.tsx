@@ -17,7 +17,7 @@ import { toast } from "sonner";
 
 
 export function Connect() {
-  const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading, offlineDevice, setOfflineDevice, offlineFirmware, setOfflineFirmware} = useGlobal();
+  const { setConnecting, isConnecting, setConnected, isConnected, setReading, isReading, setOfflineDevice, setOfflineFirmware} = useGlobal();
   const lang = useLanguage((state) => state.language);
   const { connection, setDevice, setFirmware } = useModbusConnection();
   const [availableFirmwares, setAvailableFirmwares] = useState<string[]>([]);

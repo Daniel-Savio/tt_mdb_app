@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import Logo from "@/assets/treetech_green.png";
 import { useLanguage } from "@/store/useLanguage";
 import BrFlag from "@/assets/br-logo.png";
 import UsaFlag from "@/assets/usa-logo.png";
