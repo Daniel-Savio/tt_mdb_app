@@ -1,7 +1,14 @@
-import React, { useState } from "react";
-import { ChevronRight, ChevronDown, Folder, FileText } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  FileText,
+  Search,
+} from "lucide-react";
 import { RawJsonReading } from "@/pages/Readings";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 
 interface TreeItem {
   name: string;
@@ -15,27 +22,31 @@ interface CascadeViewProps {
 }
 
 export function CascadeView({ data, onSelect }: CascadeViewProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredData = useMemo(() => {
+    if (!searchTerm.trim()) return data;
+    const lowerTerm = searchTerm.toLowerCase();
+    return data.filter((reading) => {
+      const desc = reading["Descrição pt"]?.toLowerCase() || "";
+      const uuid = reading.UUID.toLowerCase();
+      return desc.includes(lowerTerm) || uuid.includes(lowerTerm);
+    });
+  }, [data, searchTerm]);
+
   const buildTree = (readings: RawJsonReading[]): TreeItem[] => {
     const root: TreeItem[] = [];
 
     readings.forEach((reading) => {
-      const pathStr = reading["Display pt"]?.trim() || "";
-      
-      // Se o atributo estiver vazio, adiciona como uma lista "normal" na raiz
-      if (!pathStr) {
-        root.push({
-          name: reading["Descrição pt"] || reading.UUID,
-          children: [],
-          data: reading
-        });
-        return;
-      }
-
-      const parts = pathStr.split("\\");
+      const pathStr = reading["Display pt"]?.trim() || "Geral";
+      // Split por barra invertida ou barra normal, removendo partes vazias
+      const parts = pathStr.split(/[\\\/]/).filter(Boolean);
       let currentLevel = root;
 
-      parts.forEach((part, index) => {
-        let existingNode = currentLevel.find((node) => node.name === part);
+      parts.forEach((part) => {
+        let existingNode = currentLevel.find(
+          (node) => node.name === part && !node.data,
+        );
 
         if (!existingNode) {
           existingNode = {
@@ -45,34 +56,55 @@ export function CascadeView({ data, onSelect }: CascadeViewProps) {
           currentLevel.push(existingNode);
         }
 
-        if (index === parts.length - 1) {
-          existingNode.data = reading;
-        }
-
         currentLevel = existingNode.children;
+      });
+
+      // Adiciona o item real como uma folha dentro da última pasta encontrada/criada
+      currentLevel.push({
+        name: reading["Descrição pt"] || reading.UUID,
+        children: [],
+        data: reading,
       });
     });
 
     return root;
   };
 
-  const treeData = buildTree(data);
+  const treeData = useMemo(() => buildTree(filteredData), [filteredData]);
 
   return (
-    <ScrollArea className="h-[450px] w-full border rounded-md p-4">
-      <div className="space-y-1">
-        {treeData.length > 0 ? (
-          treeData.map((node, index) => (
-            <TreeNode key={`${node.name}-${index}`} node={node} onSelect={onSelect} depth={0} />
-          ))
-        ) : (
-          <div className="text-center py-10 text-muted-foreground text-sm">
-            Nenhum item encontrado
-          </div>
-        )}
+    <div className="flex flex-col h-full space-y-4">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Pesquisar por descrição..."
+          className="pl-9"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
-       <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+
+      <ScrollArea className="h-[60vh] w-full border rounded-md p-4">
+        <div className="space-y-1">
+          {treeData.length > 0 ? (
+            treeData.map((node, index) => (
+              <TreeNode
+                key={`${node.name}-${index}`}
+                node={node}
+                onSelect={onSelect}
+                depth={0}
+                isSearchActive={!!searchTerm.trim()}
+              />
+            ))
+          ) : (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              Nenhum item encontrado
+            </div>
+          )}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </div>
   );
 }
 
@@ -80,12 +112,22 @@ interface TreeNodeProps {
   node: TreeItem;
   onSelect?: (item: RawJsonReading) => void;
   depth: number;
+  isSearchActive?: boolean;
 }
 
-function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
+function TreeNode({ node, onSelect, depth, isSearchActive }: TreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false);
   const hasChildren = node.children.length > 0;
   const hasData = !!node.data;
+
+  // Se a pesquisa estiver ativa, mantemos as pastas abertas por padrão
+  useEffect(() => {
+    if (isSearchActive && hasChildren) {
+      setIsOpen(true);
+    } else if (!isSearchActive) {
+      setIsOpen(false);
+    }
+  }, [isSearchActive, hasChildren]);
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,18 +143,23 @@ function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
   };
 
   // Verifica se o nome já é a descrição para não repetir na interface
-  const showExtraInfo = hasData && node.data?.["Descrição pt"] && node.name !== node.data["Descrição pt"];
+  const showExtraInfo =
+    hasData &&
+    node.data?.["Descrição pt"] &&
+    node.name !== node.data["Descrição pt"];
 
   return (
     <div className="select-none">
       <div
         className={`flex items-center py-1 px-2 rounded-sm cursor-pointer transition-colors ${
-          hasData ? "hover:bg-accent hover:text-accent-foreground" : "hover:bg-muted/50"
+          hasData
+            ? "hover:bg-accent hover:text-accent-foreground"
+            : "hover:bg-muted/50"
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleSelect}
       >
-        <span 
+        <span
           className="mr-1 p-0.5 rounded-md hover:bg-accent"
           onClick={hasChildren ? handleToggle : undefined}
         >
@@ -133,8 +180,10 @@ function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
             <FileText className="h-4 w-4 text-muted-foreground" />
           )}
         </span>
-        <span className={`text-sm truncate ${hasData ? "font-medium" : "text-muted-foreground font-normal"}`}>
-          {node.name} 
+        <span
+          className={`text-sm truncate ${hasData ? "font-medium" : "text-muted-foreground font-normal"}`}
+        >
+          {node.name}
           {showExtraInfo && (
             <span className="ml-1 text-xs text-muted-foreground italic">
               ({node.data?.["Descrição pt"]?.slice(13)})
@@ -151,6 +200,7 @@ function TreeNode({ node, onSelect, depth }: TreeNodeProps) {
               node={child}
               onSelect={onSelect}
               depth={depth + 1}
+              isSearchActive={isSearchActive}
             />
           ))}
         </div>

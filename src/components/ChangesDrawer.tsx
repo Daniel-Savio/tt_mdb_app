@@ -81,7 +81,7 @@ export function ChangesDrawer({
                           Number(point.original["Divisor"] || 1)}
                     </span>
                   </div>
-                  <div className="h-4 w-[1px] bg-border mx-2" />
+                  <div className="h-4 w-1 bg-border mx-2" />
                   <div className="flex flex-col text-right">
                     <span className="text-muted-foreground uppercase">
                       Novo
