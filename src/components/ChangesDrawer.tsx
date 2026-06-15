@@ -75,10 +75,15 @@ export function ChangesDrawer({
                       Original
                     </span>
                     <span className="line-through">
-                      {point.original["Conversão pt"]
-                        ? point.original["Valor default"]
-                        : Number(point.original["Valor default"]) /
-                          Number(point.original["Divisor"] || 1)}
+                      {point.original.value !== undefined && point.original.value !== null ? (
+                          point.original["Conversão pt"]
+                          ? point.original["Conversão pt"].split("\\")[Math.round(point.original.value)]?.trim() || point.original.value.toString()
+                          : (point.original.value / Number(point.original["Divisor"] || 1)).toString()
+                      ) : (
+                          point.original["Conversão pt"]
+                          ? point.original["Conversão pt"].split("\\")[parseInt(point.original["Valor default"] || "0")]?.trim() || point.original["Valor default"]
+                          : Number(point.original["Valor default"]) / Number(point.original["Divisor"] || 1)
+                      )}
                     </span>
                   </div>
                   <div className="h-4 w-1 bg-border mx-2" />
