@@ -1,8 +1,8 @@
 [package]
 name = "tt_mdb_app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "0.7.1"
+description = "Treetech reading and parametrerization tool."
+authors = ["Daniel Sávio Pereira da Silva"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -5,6 +5,7 @@ use serde_json::{json, Map, Value};
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -182,31 +183,46 @@ pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Option<Value>>
     Ok(Some(Value::Object(map)))
 }
 
-///Recives a deviec name and firmware number and returns its folder path
-pub fn get_map_path(maps_path: &Path, device: &str, firmware: &str) -> Result<PathBuf, String> {
-    let device_folder = device.to_lowercase().replace(" ", "_");
-    let firmware_folder = firmware.to_lowercase().replace(".", "_");
+/// Garante que o nome inserido seja compatível com código independente da letra ou separador
+fn normalize_name(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(|c| c.to_lowercase())
+        .collect()
+}
 
-    let path = maps_path
-        .join(&device_folder)
-        .join(&firmware_folder);
-    if path.is_dir() {
-        println!("Found folders for device: {}", &path.display());
-        let mut entries = fs::read_dir(path).unwrap();
-        while let Some(entry) = entries.next() {
-            let entry = entry.unwrap();
-            if entry.path().is_file() {
-                return Ok(entry.path());
+/// Recebe um nome como referência e retorna o o nome da pasta salva em disco
+fn find_dir_case_insensitive(parent: &Path, target: &str) -> Option<PathBuf> {
+    let target_norm = normalize_name(target);
+    let entries = fs::read_dir(parent).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if normalize_name(name) == target_norm {
+                    return Some(path);
+                }
             }
         }
-        Err("No file found in map directory".to_string())
-    } else {
-        println!(
-            "Maps not found for device: {}-{}",
-            &device_folder, &firmware_folder
-        );
-        Err("Map Not Found".to_string())
     }
+    None
+}
+
+///Recives a deviec name and firmware number and returns its folder path
+pub fn get_map_path(maps_path: &Path, device: &str, firmware: &str) -> Result<PathBuf, String> {
+    let device_dir = find_dir_case_insensitive(maps_path, device)
+        .ok_or_else(|| format!("Map Not Found (device: {})", device))?;
+    let firmware_dir = find_dir_case_insensitive(&device_dir, firmware)
+        .ok_or_else(|| format!("Map Not Found (firmware: {})", firmware))?;
+
+    println!("Found folders for device: {}", firmware_dir.display());
+    let entries = fs::read_dir(&firmware_dir).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        if entry.path().is_file() {
+            return Ok(entry.path());
+        }
+    }
+    Err("No file found in map directory".to_string())
 }
 
 /// Recivies a path to the csv file then returns a vector of this csv
@@ -216,13 +232,25 @@ pub fn csv_to_vec(
 ) -> Result<Vec<CsvMapping>, Box<dyn std::error::Error + Send + Sync>> {
     let file = File::open(&path).expect("File not found");
 
-    let utf8_file = DecodeReaderBytesBuilder::new()
+    let mut utf8_file = DecodeReaderBytesBuilder::new()
         .encoding(Some(encoding_rs::WINDOWS_1252))
         .build(file);
 
+    let mut content = String::new();
+    utf8_file.read_to_string(&mut content)?;
+
+    // Alguns mapas usam ';' como separador e outros (ex: mapas mais antigos) usam ',';
+    // detectamos pelo cabeçalho em vez de fixar um único delimitador.
+    let header_line = content.lines().next().unwrap_or("");
+    let delimiter = if header_line.matches(',').count() > header_line.matches(';').count() {
+        b','
+    } else {
+        b';'
+    };
+
     let mut rdr = csv::ReaderBuilder::new()
-        .delimiter(b';')
-        .from_reader(utf8_file);
+        .delimiter(delimiter)
+        .from_reader(content.as_bytes());
 
     let mappings: Vec<CsvMapping> = rdr.deserialize().collect::<Result<_, _>>()?;
 

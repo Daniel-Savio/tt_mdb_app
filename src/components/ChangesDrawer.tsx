@@ -19,6 +19,7 @@ interface ChangesDrawerProps {
   onImport: () => void;
   onApply: () => void;
   isApplying: boolean;
+  isConnected: boolean;
 }
 
 export function ChangesDrawer({
@@ -30,6 +31,7 @@ export function ChangesDrawer({
   onImport,
   onApply,
   isApplying,
+  isConnected,
 }: ChangesDrawerProps) {
   const pointsArray = Object.values(modifiedPoints);
   const hasChanges = pointsArray.length > 0;
@@ -139,12 +141,18 @@ export function ChangesDrawer({
         </div>
         <Button
           className="w-full justify-start gap-2 font-bold"
-          disabled={!hasChanges || isApplying}
+          disabled={!hasChanges || isApplying || !isConnected}
           onClick={onApply}
         >
           <Send className="h-4 w-4" />
           {isApplying ? "Aplicando..." : "Aplicar Alterações"}
         </Button>
+        {!isConnected && (
+          <p className="text-[10px] text-muted-foreground text-center">
+            Sem conexão: use "Exportar" para gerar o arquivo de
+            parametrização e aplicar posteriormente
+          </p>
+        )}
       </footer>
     </div>
   );

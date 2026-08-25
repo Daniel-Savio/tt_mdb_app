@@ -12,8 +12,10 @@ export function CustomTitleBar() {
       className="fixed bg-teal-950 z-10 w-full flex items-center justify-between py-2 px-2"
     >
       <img src={Logo} alt="Logo" className="h-4" />
+      
       <div className=" flex gap-1 items-center justify-center ">
-        <span className="text-xs "> Treetech - Parameter Tool - </span>
+        <span className="text-xs "> Treetech - Parameter Tool </span>
+        <p className="text-muted-foreground text-xs">- v0.7.1 -</p> 
         {isConnecting ? (
           <span className="text-yellow-400/50">
             {" "}

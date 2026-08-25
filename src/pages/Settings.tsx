@@ -9,9 +9,7 @@ import {
   Info,
   ListChecks,
   Download,
-  Send,
   Upload,
-  Factory,
   SquareActivity,
   FactoryIcon,
   RefreshCcw,
@@ -56,7 +54,6 @@ export function Settings() {
     offlineDevice,
     setOfflineDevice,
     setOfflineFirmware,
-    offlineFirmware,
   } = useGlobal();
   const [selectedReading, setSelectedReading] = useState<RawJsonReading | null>(
     null,
@@ -70,19 +67,22 @@ export function Settings() {
   const { connection } = useModbusConnection();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["parameters_data"],
+    queryKey: [
+      "parameters_data",
+      isConnected,
+      connection.device,
+      connection.firmware,
+    ],
     queryFn: async () => {
       //Sem comunicação
       if (!isConnected) {
-        connection.device
-          ? setOfflineDevice(connection.device)
-          : setOfflineDevice("");
-        connection.firmware
-          ? setOfflineFirmware(connection.firmware)
-          : setOfflineFirmware("");
+        const currentDevice = connection.device || "";
+        const currentFirmware = connection.firmware || "";
+        setOfflineDevice(currentDevice);
+        setOfflineFirmware(currentFirmware);
         let raw_data: string = await invoke("public_parameters", {
-          device: offlineDevice,
-          firmware: offlineFirmware,
+          device: currentDevice,
+          firmware: currentFirmware,
         });
         let jsonData = JSON.parse(raw_data) as RawJsonReading[];
         return jsonData;
@@ -94,6 +94,7 @@ export function Settings() {
         return jsonData;
       }
     },
+    enabled: isConnected || (!!connection.device && !!connection.firmware),
   });
 
   const [isReadingValue, setIsReadingValue] = useState(false);
@@ -444,6 +445,15 @@ export function Settings() {
   };
 
   const applyChanges = async () => {
+    if (!isConnected) {
+      toast.error(
+        lang === "pt-br"
+          ? "Sem conexão: exporte as alterações para aplicar posteriormente"
+          : "No connection: export the changes to apply later",
+      );
+      return;
+    }
+
     setIsApplying(true);
     const points = Object.values(modifiedPoints);
 
@@ -588,6 +598,12 @@ export function Settings() {
                 {lang === "pt-br" ? "carregando..." : "loading..."}{" "}
                 <Sheet className="animate-spin" />
               </span>
+            </div>
+          ) : !isConnected && (!connection.device || !connection.firmware) ? (
+            <div className="flex items-center justify-center flex-1 border rounded-md text-sm text-muted-foreground text-center p-4">
+              {lang === "pt-br"
+                ? "Nenhum IED selecionado. Selecione um equipamento e firmware na tela de Conexão."
+                : "No IED selected. Select a device and firmware on the Connection screen."}
             </div>
           ) : (
             <CascadeView
@@ -838,6 +854,7 @@ export function Settings() {
         onImport={importFromJson}
         onApply={applyChanges}
         isApplying={isApplying}
+        isConnected={isConnected}
       />
     </section>
   );
