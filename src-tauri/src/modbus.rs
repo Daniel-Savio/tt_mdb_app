@@ -1,3 +1,4 @@
+use crate::consts;
 use crate::maps::{csv_to_vec, get_map_path, DeviceData};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -82,7 +83,7 @@ impl ModbusClient {
         &mut self,
         app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
-        let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+        let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
         let map_path = get_map_path(&maps_path, &self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
         let mut result = Vec::new();
@@ -298,7 +299,7 @@ impl ModbusClient {
         &mut self,
         app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
-        let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+        let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
         let map_path = get_map_path(&maps_path, &self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
 

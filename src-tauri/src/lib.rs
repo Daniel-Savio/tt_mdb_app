@@ -1,3 +1,4 @@
+pub mod consts;
 pub mod maps;
 pub mod modbus;
 use crate::modbus::ModbusClient;
@@ -40,7 +41,7 @@ struct AppState {
 
 #[tauri::command]
 fn get_maps(app: AppHandle) -> GetMapsResponse {
-    let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+    let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
 
     match build_custom_tree(&maps_path, 0) {
         Ok(Some(tree)) => {
@@ -145,7 +146,7 @@ async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<Str
 
 #[tauri::command]
 fn public_parameters(app: AppHandle, device: String, firmware: String) -> Result<String, String>{
-    let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+    let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
     let result = maps::get_public_parameters(&maps_path, &device, &firmware);
     match result {
         Ok(data) => {
