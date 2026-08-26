@@ -1,15 +1,18 @@
 pub mod consts;
 pub mod maps;
 pub mod modbus;
+
 use crate::modbus::ModbusClient;
+use anyhow::Context;
 use maps::build_custom_tree;
+use maps::get_map_path;
+use maps::return_client_csv;
 use modbus::ModbusConnection;
+use polars::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::fs::File;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State};
-
-
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +44,7 @@ struct AppState {
 
 #[tauri::command]
 fn get_maps(app: AppHandle) -> GetMapsResponse {
-    let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
+    let maps_path = consts::maps_path(&app);
 
     match build_custom_tree(&maps_path, 0) {
         Ok(Some(tree)) => {
@@ -68,7 +71,11 @@ fn get_maps(app: AppHandle) -> GetMapsResponse {
 }
 
 #[tauri::command]
-async fn create_connection(info: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+async fn create_connection(
+    info: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let connection_info: ConnectionData = match serde_json::from_str(&info) {
         Ok(info) => info,
         Err(e) => {
@@ -93,25 +100,33 @@ async fn create_connection(info: String, app: AppHandle, state: State<'_, AppSta
         is_tcp: connection_info.is_tcp,
     };
     app.emit("connection-trying", true).unwrap();
-    
-    
-    if let Ok(client) = ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await {
-        println!("Successfully created Modbus client for device: {}-{}", device_name, firmware);
+
+    if let Ok(client) =
+        ModbusClient::new(connection_info, device_name.clone(), firmware.clone()).await
+    {
+        println!(
+            "Successfully created Modbus client for device: {}-{}",
+            device_name, firmware
+        );
         *state.client.lock().unwrap() = Some(client);
-        app.emit("connection-success", "Successfully connected to device").unwrap();
+        app.emit("connection-success", "Successfully connected to device")
+            .unwrap();
         Ok(())
     } else {
-        app.emit("connection-error", "Failed to create Modbus client").unwrap();
+        app.emit("connection-error", "Failed to create Modbus client")
+            .unwrap();
         Err("Failed to create Modbus client".to_string())
     }
-
 }
 
 #[tauri::command]
 fn close_connection(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let mut _client_opt = state.client.lock().unwrap();
     if let Some(client) = _client_opt.take() {
-        println!("Closing Modbus client for device: {}-{}", client.device, client.firmware);
+        println!(
+            "Closing Modbus client for device: {}-{}",
+            client.device, client.firmware
+        );
         app.emit("reading-stop", true).unwrap();
         return Ok(String::from("Closing connection"));
     } else {
@@ -119,7 +134,6 @@ fn close_connection(app: AppHandle, state: State<'_, AppState>) -> Result<String
         app.emit("reading-stop", true).unwrap();
         return Err("No Modbus client to close".to_string());
     }
-    
 }
 
 #[tauri::command]
@@ -145,21 +159,19 @@ async fn start_reading(state: State<'_, AppState>, app: AppHandle) -> Result<Str
 }
 
 #[tauri::command]
-fn public_parameters(app: AppHandle, device: String, firmware: String) -> Result<String, String>{
-    let maps_path = app.path().resource_dir().unwrap().join(consts::MAPS_SUBDIR);
+fn public_parameters(app: AppHandle, device: String, firmware: String) -> Result<String, String> {
+    let maps_path = consts::maps_path(&app);
     let result = maps::get_public_parameters(&maps_path, &device, &firmware);
     match result {
         Ok(data) => {
-            let serialized = serde_json::to_string(&data)
-                    .map_err(|e| format!("Falha ao serializar: {}", e))?;
-                Ok(serialized)
-        },
-        Err(e) => {
-            Err(format!("Erro ao ler dispositivo: {}", e))
+            let serialized =
+                serde_json::to_string(&data).map_err(|e| format!("Falha ao serializar: {}", e))?;
+            Ok(serialized)
         }
+        Err(e) => Err(format!("Erro ao ler dispositivo: {}", e)),
     }
 }
- 
+
 #[tauri::command]
 fn get_serial_ports() -> Vec<String> {
     match tokio_serial::available_ports() {
@@ -171,7 +183,36 @@ fn get_serial_ports() -> Vec<String> {
     }
 }
 
+#[tauri::command]
+///Baixa diretamente na pasta de downloads do usuário um arquivo CSV apenas com os pontos que o usuário final pode ter acesso
+/// # Arguments
+/// * `device` - Nome do dispositivo
+/// * `firmware` - Nome do firmware
+/// * `lang` - Idioma escolhido - "pt" ou "en"
+/// * `app` - Handle do aplicativo
+async fn donwload_client_csv(device: String, firmware: String, lang: String, app: AppHandle) {
+    let maps_folder_path = consts::maps_path(&app);
+    let map_path = get_map_path(&maps_folder_path, &device, &firmware).unwrap();
+    let mut csv = return_client_csv(&map_path, lang).unwrap();
 
+    let pasta_download = dirs::download_dir()
+        .context("Não foi possível encontrar a pasta de Downloads")
+        .unwrap();
+
+    let caminho_saida = pasta_download.join(format!("protocol_map_{device}-{firmware}-{lang}.csv"));
+
+    let mut arquivo_saida = File::create(&caminho_saida)
+        .with_context(|| format!("Falha ao criar o arquivo em {}", caminho_saida.display()))
+        .unwrap();
+
+    CsvWriter::new(&mut arquivo_saida)
+        .include_header(true)
+        .with_separator(b';')
+        .finish(&mut csv)
+        .unwrap();
+
+    println!("Arquivo gerado em: {}", caminho_saida.display());
+}
 
 #[tauri::command]
 fn stop_reading(app: AppHandle) {
@@ -229,8 +270,20 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState { client: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![get_maps, close_connection, create_connection, get_serial_ports, start_reading, public_parameters, stop_reading, write_parameter, read_parameter])
+        .manage(AppState {
+            client: Mutex::new(None),
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_maps,
+            close_connection,
+            create_connection,
+            get_serial_ports,
+            start_reading,
+            public_parameters,
+            stop_reading,
+            write_parameter,
+            read_parameter
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
