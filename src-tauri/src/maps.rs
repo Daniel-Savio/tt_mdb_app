@@ -294,7 +294,7 @@ pub fn get_public_parameters(
 
 pub fn return_client_csv(
     map_path: &PathBuf,
-    lang: String,
+    lang: &String,
 ) -> Result<DataFrame, Box<dyn std::error::Error + Send + Sync>> {
     // Nomes das colunas do CSV original que mudam conforme o idioma escolhido
     let coluna_descricao = format!("Descrição {lang}");
@@ -318,7 +318,7 @@ pub fn return_client_csv(
         .finish()?; // <- isso que faltava
 
     // Filtrando o CSV para obter apenas os registros públicos
-    let mut public_csv = csv
+    let public_csv = csv
         .clone()
         .lazy()
         .filter(col("Nível de acesso").eq(lit("Público"))) // Envolver com um lit para o plars saber que é um valor literal dentro da coluna Nível de acesso

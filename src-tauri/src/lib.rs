@@ -193,7 +193,7 @@ fn get_serial_ports() -> Vec<String> {
 async fn donwload_client_csv(device: String, firmware: String, lang: String, app: AppHandle) {
     let maps_folder_path = consts::maps_path(&app);
     let map_path = get_map_path(&maps_folder_path, &device, &firmware).unwrap();
-    let mut csv = return_client_csv(&map_path, lang).unwrap();
+    let mut csv = return_client_csv(&map_path, &lang).unwrap();
 
     let pasta_download = dirs::download_dir()
         .context("Não foi possível encontrar a pasta de Downloads")
@@ -282,7 +282,8 @@ pub fn run() {
             public_parameters,
             stop_reading,
             write_parameter,
-            read_parameter
+            read_parameter,
+            donwload_client_csv
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
