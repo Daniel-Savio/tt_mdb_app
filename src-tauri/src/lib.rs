@@ -190,7 +190,13 @@ fn get_serial_ports() -> Vec<String> {
 /// * `firmware` - Nome do firmware
 /// * `lang` - Idioma escolhido - "pt" ou "en"
 /// * `app` - Handle do aplicativo
-async fn donwload_client_csv(device: String, firmware: String, lang: String, app: AppHandle) {
+async fn donwload_client_csv(
+    device: String,
+    firmware: String,
+    lang: String,
+    app: AppHandle,
+) -> Result<String, String> {
+    print!("Baixando mapa");
     let maps_folder_path = consts::maps_path(&app);
     let map_path = get_map_path(&maps_folder_path, &device, &firmware).unwrap();
     let mut csv = return_client_csv(&map_path, &lang).unwrap();
@@ -212,6 +218,7 @@ async fn donwload_client_csv(device: String, firmware: String, lang: String, app
         .unwrap();
 
     println!("Arquivo gerado em: {}", caminho_saida.display());
+    Ok("Download Concluído".to_string())
 }
 
 #[tauri::command]
