@@ -1,7 +1,8 @@
+use crate::consts;
 use crate::maps::{csv_to_vec, get_map_path, DeviceData};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 use tokio_modbus::{client::Context, prelude::*};
 use tokio_serial::SerialStream;
 
@@ -82,7 +83,7 @@ impl ModbusClient {
         &mut self,
         app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
-        let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+        let maps_path = consts::maps_path(&app);
         let map_path = get_map_path(&maps_path, &self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
         let mut result = Vec::new();
@@ -97,9 +98,9 @@ impl ModbusClient {
                         match outer_result {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
-                                Err(e) => None,
+                                Err(_e) => None,
                             },
-                            Err(e) => None,
+                            Err(_e) => None,
                         }
                     }
                     "Input register" => {
@@ -107,9 +108,9 @@ impl ModbusClient {
                         match outer_result {
                             Ok(inner_result) => match inner_result {
                                 Ok(vec) => Some(vec[0] as f64),
-                                Err(e) => None,
+                                Err(_e) => None,
                             },
-                            Err(e) => None,
+                            Err(_e) => None,
                         }
                     }
                     "Coil" => {
@@ -228,23 +229,27 @@ impl ModbusClient {
                 if is_bitmask {
                     let tratamento_str = tratamento.unwrap();
                     let bit_index = Self::get_bit_index(tratamento_str).unwrap();
-                    
+
                     // Read-Modify-Write
                     let current_vec = match self.client.read_holding_registers(addr, 1).await {
                         Ok(Ok(vec)) => vec,
                         Ok(Err(e)) => return Err(Box::new(e)),
                         Err(e) => return Err(Box::new(e)),
                     };
-                    
+
                     let mut register_value = current_vec[0];
-                    
+
                     if value > 0.5 {
                         register_value |= 1 << bit_index;
                     } else {
                         register_value &= !(1 << bit_index);
                     }
-                    
-                    match self.client.write_single_register(addr, register_value).await {
+
+                    match self
+                        .client
+                        .write_single_register(addr, register_value)
+                        .await
+                    {
                         Ok(Ok(())) => Ok(()),
                         Ok(Err(e)) => Err(Box::new(e)),
                         Err(e) => Err(Box::new(e)),
@@ -257,13 +262,11 @@ impl ModbusClient {
                     }
                 }
             }
-            "Coil" => {
-                match self.client.write_single_coil(addr, value > 0.5).await {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(e)) => Err(Box::new(e)),
-                    Err(e) => Err(Box::new(e)),
-                }
-            }
+            "Coil" => match self.client.write_single_coil(addr, value > 0.5).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(Box::new(e)),
+                Err(e) => Err(Box::new(e)),
+            },
             _ => Err("Tipo de registrador não suportado para escrita ou não implementado".into()),
         }
     }
@@ -298,7 +301,7 @@ impl ModbusClient {
         &mut self,
         app: tauri::AppHandle,
     ) -> Result<Vec<DeviceData>, Box<dyn std::error::Error + Send + Sync>> {
-        let maps_path = app.path().resource_dir().unwrap().join("src").join("maps_folder");
+        let maps_path = consts::maps_path(&app);
         let map_path = get_map_path(&maps_path, &self.device, &self.firmware)?;
         let map_vec = csv_to_vec(&map_path)?;
 

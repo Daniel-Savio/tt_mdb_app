@@ -1,10 +1,13 @@
+use encoding_rs::WINDOWS_1252; //Essa outra porcaria aqui é para poder decodificar o CSV de latin1 para UTF-8
 use encoding_rs_io::DecodeReaderBytesBuilder;
+use polars::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::io::Cursor;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
@@ -287,4 +290,59 @@ pub fn get_public_parameters(
     }
 
     Ok(results)
+}
+
+pub fn return_client_csv(
+    map_path: &PathBuf,
+    lang: &String,
+) -> Result<DataFrame, Box<dyn std::error::Error + Send + Sync>> {
+    // Nomes das colunas do CSV original que mudam conforme o idioma escolhido
+    let coluna_descricao = format!("Descrição {lang}");
+    let coluna_unidade = format!("Unidade {lang}");
+    let coluna_conversao = format!("Conversão {lang}");
+
+    let raw_bytes_csv =
+        std::fs::read(map_path).unwrap_or_else(|_e| panic!("WTF is worng with your path?"));
+    let (decoded, _encoding_usado, has_errors) = WINDOWS_1252.decode(&raw_bytes_csv);
+
+    if has_errors {
+        panic!("Erro ao decodificar o CSV de latin1 para UTF-8");
+    }
+    let cursor = Cursor::new(decoded.as_bytes());
+
+    //Aqui a variável csv passa a ser um DataFrame
+    let csv = CsvReadOptions::default()
+        .with_has_header(true)
+        .with_parse_options(CsvParseOptions::default().with_separator(b';'))
+        .into_reader_with_file_handle(cursor)
+        .finish()?; // <- isso que faltava
+
+    // Filtrando o CSV para obter apenas os registros públicos
+    let public_csv = csv
+        .clone()
+        .lazy()
+        .filter(col("Nível de acesso").eq(lit("Público"))) // Envolver com um lit para o plars saber que é um valor literal dentro da coluna Nível de acesso
+        .select([
+            col(coluna_descricao.as_str()).alias("Descrição"),
+            col("Tratamento"),
+            concat_str(
+                [col("Limite inferior"), col("Limite superior")],
+                "...",
+                true,
+            )
+            .alias("Range"),
+            // Se "Unidade {idioma}" estiver vazia (null), usa o valor de "Conversão {idioma}" no lugar
+            col(coluna_unidade.as_str())
+                .fill_null(col(coluna_conversao.as_str()))
+                .alias("Unidade"),
+            col("Opcional").fill_null(lit("STD")).alias("Opcional"),
+            col("Tipo (Modbus)"),
+            col("Registrador (Modbus)"),
+            col("Tipo (DNP3)"),
+            col("Índice (DNP3)"),
+            col("IEC 61850"),
+        ])
+        .collect()?; // Isso transforma um lazyframe em um DataFrame de fato
+
+    Ok(public_csv)
 }
