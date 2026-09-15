@@ -36,7 +36,7 @@ function App() {
       setIeds(data);
       toast.success(
         lang === "pt-br"
-          ? "Mapas carregados com sucesso!"
+          ? `Mapas carregados com sucesso!`
           : "Maps loaded successfully!"
       );
     }

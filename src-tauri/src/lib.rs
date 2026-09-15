@@ -49,7 +49,7 @@ fn get_maps(app: AppHandle) -> GetMapsResponse {
     match build_custom_tree(&maps_path, 0) {
         Ok(Some(tree)) => {
             let json_output = serde_json::to_string_pretty(&tree).unwrap();
-
+            print!("{:#}", json_output);
             return GetMapsResponse {
                 maps: json_output,
                 err: false,
