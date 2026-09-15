@@ -1,6 +1,6 @@
 [package]
 name = "tt_mdb_app"
-version = "0.7.1"
+version = "0.8.0"
 description = "Treetech reading and parametrerization tool."
 authors = ["Daniel Sávio Pereira da Silva"]
 edition = "2021"

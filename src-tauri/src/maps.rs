@@ -182,7 +182,7 @@ pub fn build_custom_tree(path: &Path, level: usize) -> io::Result<Option<Value>>
         // Se for um arquivo, usamos a chave "File"
         map.insert("File".to_string(), json!(true));
     }
-
+    //println!("{:#?}", map);
     Ok(Some(Value::Object(map)))
 }
 
